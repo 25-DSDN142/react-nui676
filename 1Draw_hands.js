@@ -17,20 +17,43 @@ function drawInteraction(faces, hands) {
     // This is how to load in the x and y of a point on the hand.
     let indexFingerTipX = hand.index_finger_tip.x;
     let indexFingerTipY = hand.index_finger_tip.y;
+    let wristX = hand.wrist.x;
+    let wristY = hand.wrist.y;
+    let wristZ = hand.wrist.z3D;
+    let middleFingerTipX = hand.middle_finger_tip.x;
+let middleFingerTipY = hand.middle_finger_tip.y;
+let middleFingerTipZ = hand.middle_finger_tip.z3D;
+
+let thumbTipX = hand.thumb_tip.x;
+let thumbTipY = hand.thumb_tip.y;
+let thumbTipZ = hand.thumb_tip.z3D;
 
     //  let pinkyFingerTipX = hand.pinky_finger_tip.x;
-    //  let pinkyFingerTipY = hand.pinky_finger_tip.y;
+    //  let pinkyFingerTipY = hand.pinky  _finger_tip.y;
 
     /*
     Start drawing on the hands here
     */
+   let middleOfHandX = (middleFingerTipX + wristX) / 2
+   let middleOfHandY = (middleFingerTipY + wristY) / 2
 
     fill(225, 225, 0);
-    ellipse(indexFingerTipX, indexFingerTipY, 30, 30);
+    ellipse(middleOfHandX, middleOfHandY, 30, 30);
 
-    // drawPoints(hand)
+    fill (0);
+    rect (wristX, wristY, 30, 30);
 
-    //fingerPuppet(indexFingerTipX, indexFingerTipY);
+    strokeWeight(2);
+    stroke (0);
+    line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
+    line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
+  
+
+    //drawPoints(hand)
+
+    fingerPuppet(indexFingerTipX, indexFingerTipY);
+
+    
 
     //chameleonHandPuppet(hand)
 
