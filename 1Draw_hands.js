@@ -48,7 +48,11 @@ let thumbTipZ = hand.thumb_tip.z3D;
     line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
     line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
   
-    flame (middleFingerTipX, middleFingerTipY);
+  // Calculate angle between middle finger tip and pip (proximal interphalangeal joint)
+  let middleFingerPipX = hand.middle_finger_pip.x;
+  let middleFingerPipY = hand.middle_finger_pip.y;
+  let angle = Math.atan2(middleFingerTipY - middleFingerPipY, middleFingerTipX - middleFingerPipX);
+  flame(middleFingerTipX, middleFingerTipY, angle);
 
 
     //drawPoints(hand)
@@ -67,21 +71,25 @@ let thumbTipZ = hand.thumb_tip.z3D;
   //------------------------------------------------------
 }
 
-function flame (x, y) {
-  
+function flame(x, y, angle) {
+  push();
+  translate(x, y);
+  rotate(angle - Math.PI/2); // Make flame point away from finger
+  // Optionally scale the flame to fit the finger size
+  // scale(0.2); // Uncomment and adjust if needed
   beginShape();
-  vertex(200, 450);          // bottom center
+  vertex(0, 50); // bottom center
 
   // left side curve
-  bezierVertex(120, 400, 80, 300, 150, 200);
-  bezierVertex(100, 100, 160, 50, 200, 80);
+  bezierVertex(-40, 20, -60, -30, -20, -60);
+  bezierVertex(-30, -90, 0, -120, 0, -100);
 
   // right side curve
-  bezierVertex(240, 50, 300, 100, 250, 200);
-  bezierVertex(320, 300, 280, 400, 200, 450);
+  bezierVertex(0, -120, 30, -90, 20, -60);
+  bezierVertex(60, -30, 40, 20, 0, 50);
 
   endShape(CLOSE);
-
+  pop();
 }
 
 
