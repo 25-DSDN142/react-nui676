@@ -48,12 +48,14 @@ let thumbTipZ = hand.thumb_tip.z3D;
     line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
     line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
   
+    flame (middleFingerTipX, middleFingerTipY);
+
 
     //drawPoints(hand)
 
     fingerPuppet(indexFingerTipX, indexFingerTipY);
 
-    
+
 
     //chameleonHandPuppet(hand)
 
@@ -65,9 +67,22 @@ let thumbTipZ = hand.thumb_tip.z3D;
   //------------------------------------------------------
 }
 
+function flame (x, y) {
+  
+  beginShape();
+  vertex(200, 450);          // bottom center
 
+  // left side curve
+  bezierVertex(120, 400, 80, 300, 150, 200);
+  bezierVertex(100, 100, 160, 50, 200, 80);
 
+  // right side curve
+  bezierVertex(240, 50, 300, 100, 250, 200);
+  bezierVertex(320, 300, 280, 400, 200, 450);
 
+  endShape(CLOSE);
+
+}
 
 
 function fingerPuppet(x, y) {
