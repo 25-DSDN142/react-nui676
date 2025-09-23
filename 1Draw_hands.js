@@ -48,6 +48,7 @@ let thumbTipZ = hand.thumb_tip.z3D;
     line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
     line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
   
+    //this is ai/co pilot.
   // Calculate angle between middle finger tip and pip (proximal interphalangeal joint)
   let middleFingerPipX = hand.middle_finger_pip.x;
   let middleFingerPipY = hand.middle_finger_pip.y;
