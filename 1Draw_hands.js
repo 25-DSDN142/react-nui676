@@ -46,9 +46,8 @@ let thumbTipZ = hand.thumb_tip.z3D;
 
     //drawPoints(hand)
 
-    fingerPuppet(indexFingerTipX, indexFingerTipY);
-
-
+  flame (indexFingerTipX, indexFingerTipY, angle);
+flame (thumbTipX, thumbTipY, angle)
 
     //chameleonHandPuppet(hand)
 
