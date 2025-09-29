@@ -34,19 +34,7 @@ let thumbTipZ = hand.thumb_tip.z3D;
     /*
     Start drawing on the hands here
     */
-   let middleOfHandX = (middleFingerTipX + wristX) / 2
-   let middleOfHandY = (middleFingerTipY + wristY) / 2
-
-    fill(225, 225, 0);
-    ellipse(middleOfHandX, middleOfHandY, 30, 30);
-
-    fill (0);
-    rect (wristX, wristY, 30, 30);
-
-    strokeWeight(2);
-    stroke (0);
-    line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
-    line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
+  
   
     //this is ai/co pilot.
   // Calculate angle between middle finger tip and pip (proximal interphalangeal joint)
@@ -74,6 +62,9 @@ let thumbTipZ = hand.thumb_tip.z3D;
 
 function flame(x, y, angle) {
   push();
+  strokeWeight (2)
+  stroke ("white")
+  fill ("orange")
   translate(x, y);
   rotate(angle - Math.PI/2); // Make flame point away from finger
   // Optionally scale the flame to fit the finger size
@@ -82,8 +73,8 @@ function flame(x, y, angle) {
   vertex(0, 50); // bottom center
 
   // left side curve
-  bezierVertex(-40, 20, -60, -30, -20, -60);
-  bezierVertex(-30, -90, 0, -120, 0, -100);
+  bezierVertex(-50, 20, -60, -30, -20, -60);//top flame?
+  bezierVertex(-30, -100, 0, -120, 0, -100);//bottom flame
 
   // right side curve
   bezierVertex(0, -120, 30, -90, 20, -60);
