@@ -17,16 +17,28 @@ function drawInteraction(faces, hands) {
     // This is how to load in the x and y of a point on the hand.
     let indexFingerTipX = hand.index_finger_tip.x;
     let indexFingerTipY = hand.index_finger_tip.y;
+
     let wristX = hand.wrist.x;
     let wristY = hand.wrist.y;
     let wristZ = hand.wrist.z3D;
+
+
     let middleFingerTipX = hand.middle_finger_tip.x;
-let middleFingerTipY = hand.middle_finger_tip.y;
-let middleFingerTipZ = hand.middle_finger_tip.z3D;
+    let middleFingerTipY = hand.middle_finger_tip.y;
+    let middleFingerTipZ = hand.middle_finger_tip.z3D;
 
 let thumbTipX = hand.thumb_tip.x;
 let thumbTipY = hand.thumb_tip.y;
 let thumbTipZ = hand.thumb_tip.z3D;
+
+let ringFingerTipX = hand.ring_finger_tip.x;
+let ringFingerTipY = hand.ring_finger_tip.y;
+let ringFingerTipZ = hand.ring_finger_tip.z3D;
+
+let pinkyFingerTipX = hand.pinky_finger_tip.x;
+let pinkyFingerTipY = hand.pinky_finger_tip.y;
+let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
+
 
     //  let pinkyFingerTipX = hand.pinky_finger_tip.x;
     //  let pinkyFingerTipY = hand.pinky  _finger_tip.y;
@@ -42,7 +54,8 @@ let thumbTipZ = hand.thumb_tip.z3D;
   let middleFingerPipY = hand.middle_finger_pip.y;
   let angle = Math.atan2(middleFingerTipY - middleFingerPipY, middleFingerTipX - middleFingerPipX);
   flame(middleFingerTipX, middleFingerTipY, angle);
-
+  flame(hand.pinky_finger_tip.x,hand.pinky_finger_tip.y,angle);
+  flame(hand.ring_finger_tip.x,hand.ring_finger_tip.y,angle);
 
     //drawPoints(hand)
 
