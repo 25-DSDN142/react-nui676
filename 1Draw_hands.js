@@ -46,26 +46,11 @@ let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
     /*
     Start drawing on the hands here
     */
+  push();
+  translate (100, 200);
+  flame ();
+  pop ();
   
-  
-    //this is ai/co pilot.
-  // Calculate angle between middle finger tip and pip (proximal interphalangeal joint)
-  let middleFingerPipX = hand.middle_finger_pip.x;
-  let middleFingerPipY = hand.middle_finger_pip.y;
-  let angle = Math.atan2(middleFingerTipY - middleFingerPipY, middleFingerTipX - middleFingerPipX);
-  flame(middleFingerTipX, middleFingerTipY, angle);
-  flame(hand.pinky_finger_tip.x,hand.pinky_finger_tip.y,angle);
-  flame(hand.ring_finger_tip.x,hand.ring_finger_tip.y,angle);
-
-    //drawPoints(hand)
-
-  flame (indexFingerTipX, indexFingerTipY, angle);
-flame (thumbTipX, thumbTipY, angle)
-
-push();
-translate (200, 100);
-flame ();
-pop();
     //chameleonHandPuppet(hand)
 
     /*
@@ -73,10 +58,82 @@ pop();
     */
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
+
   //------------------------------------------------------
 }
+function drawInteraction(faces, hands) {
+  for (let i = 0; i < hands.length; i++) {
+    let hand = hands[i];
 
-function flame(x, y, angle) {
+    if (showKeypoints) drawConnections(hand);
+
+  // get index fingertip and palm center (average of MCP joints)
+  let indexFingerTipX = hand.index_finger_tip.x;
+  let indexFingerTipY = hand.index_finger_tip.y;
+  let thumbTipX = hand.thumb_tip.x;
+  let thumbTipY = hand.thumb_tip.y;
+  let pinkyTipX = hand.pinky_finger_tip.x;
+  let pinkyTipY = hand.pinky_finger_tip.y;
+  // Palm center as average of MCP joints
+  let palmJoints = [
+    hand.index_finger_mcp,
+    hand.middle_finger_mcp,
+    hand.ring_finger_mcp,
+    hand.pinky_finger_mcp
+  ];
+  let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
+  let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
+
+  // Calculate openness as distance between thumb and pinky
+  let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
+  // Map openness to a reasonable scale factor (adjust min/max as needed)
+  let scaleFactor = map(openness, 30, 200, 0.7, 2.2, true); // clamp between 0.7 and 2.2
+
+  // Interpolate flame position from index to palm as hand opens
+  // t = 0 (closed) -> index, t = 1 (open) -> palm
+  let t = map(openness, 30, 200, 0, 1, true);
+  let flameX = lerp(indexFingerTipX, palmX, t);
+  let flameY = lerp(indexFingerTipY, palmY, t);
+
+  // draw the flame at the interpolated position, scaling with openness
+  flame(flameX, flameY, random(TWO_PI), scaleFactor);
+  }
+}
+function flame(x, y, angle, scaleFactor = 1) {
+  push();
+  translate(x, y);
+  rotate(angle);
+  // subtle flicker
+  let flicker = random(0.9, 1.1);
+  scale(flicker * scaleFactor);
+
+  noStroke();
+
+  // outer glow
+  fill(255, 80, 0, 100);
+  ellipse(0, 0, 80, 100);
+
+  // main body
+  fill(255, 140, 0, 180);
+  beginShape();
+  vertex(0, 40);
+  bezierVertex(-20, 10, -10, -40, 0, -60);
+  bezierVertex(10, -40, 20, 10, 0, 40);
+  endShape(CLOSE);
+
+  // inner core (yellow bit)
+  fill(255, 255, 0, 220);
+  beginShape();
+  vertex(0, 30);
+  bezierVertex(-10, 5, -5, -30, 0, -40);
+  bezierVertex(5, -30, 10, 5, 0, 30);
+  endShape(CLOSE);
+
+  pop();
+}
+
+
+function flamer(x, y, angle) {
   push();
   strokeWeight (2)
   stroke ("white")
@@ -87,14 +144,7 @@ function flame(x, y, angle) {
   // scale(0.2); // Uncomment and adjust if needed
   beginShape();
   vertex(0, 50); // bottom center
-
-  // left side curve
-  bezierVertex(-50, 20, -60, -30, -20, -60);//top flame?
-  bezierVertex(-30, -100, 0, -120, 0, -100);//bottom flame
-
-  // right side curve
-  bezierVertex(0, -120, 30, -90, 20, -60);
-  bezierVertex(60, -30, 40, 20, 0, 50);
+  bezierVertex ()
 
   endShape(CLOSE);
   pop();
