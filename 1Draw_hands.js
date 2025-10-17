@@ -106,12 +106,12 @@ let pinkyFingerTipX = hand.pinky_finger_tip.x;
 let pinkyFingerTipY = hand.pinky_finger_tip.y;
 let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
 
-let palmBaseX = (hand.index_finger_mcp.x + hand.pinky_finger_mcp.x + hand.wrist.x) / 3;
-let palmBaseY = (hand.index_finger_mcp.y + hand.pinky_finger_mcp.y + hand.wrist.y) / 3;
-let handOpen = dist(indexFingerTipX, indexFingerTipY, thumbTipX, thumbTipY);
-let openNorm = constrain(map(handOpen, 20, 200, 0, 1), 0, 1);
-let flameX = lerp(palmBaseX, indexFingerTipX, openNorm);
-let flameY = lerp(palmBaseY, indexFingerTipY, openNorm);
+
+// Place flame in the middle of the palm (average of MCP joints and wrist)
+let palmCenterX = (hand.index_finger_mcp.x + hand.middle_finger_mcp.x + hand.ring_finger_mcp.x + hand.pinky_finger_mcp.x + hand.wrist.x) / 5;
+let palmCenterY = (hand.index_finger_mcp.y + hand.middle_finger_mcp.y + hand.ring_finger_mcp.y + hand.pinky_finger_mcp.y + hand.wrist.y) / 5;
+let flameX = palmCenterX;
+let flameY = palmCenterY;
 
   //Start drawing on the hands here
   
