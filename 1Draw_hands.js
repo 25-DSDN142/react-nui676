@@ -62,44 +62,54 @@ let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
   //------------------------------------------------------
 }
 function drawInteraction(faces, hands) {
+  let twoHands = hands.length >= 2;
+  let blueMode = false;
+  let globalScale = 1;
+  if (twoHands) {
+    // Calculate thumb tip distance
+    let t0 = hands[0].thumb_tip;
+    let t1 = hands[1].thumb_tip;
+    let thumbDist = dist(t0.x, t0.y, t1.x, t1.y);
+    // Map thumb distance to scale (adjust min/max as needed)
+    globalScale = map(thumbDist, 50, 500, 0.7, 2.5, true);
+    blueMode = true;
+  }
   for (let i = 0; i < hands.length; i++) {
     let hand = hands[i];
-
     if (showKeypoints) drawConnections(hand);
+    // get index fingertip and palm center (average of MCP joints)
+    let indexFingerTipX = hand.index_finger_tip.x;
+    let indexFingerTipY = hand.index_finger_tip.y;
+    let thumbTipX = hand.thumb_tip.x;
+    let thumbTipY = hand.thumb_tip.y;
+    let pinkyTipX = hand.pinky_finger_tip.x;
+    let pinkyTipY = hand.pinky_finger_tip.y;
+    // Palm center as average of MCP joints
+    let palmJoints = [
+      hand.index_finger_mcp,
+      hand.middle_finger_mcp,
+      hand.ring_finger_mcp,
+      hand.pinky_finger_mcp
+    ];
+    let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
+    let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
 
-  // get index fingertip and palm center (average of MCP joints)
-  let indexFingerTipX = hand.index_finger_tip.x;
-  let indexFingerTipY = hand.index_finger_tip.y;
-  let thumbTipX = hand.thumb_tip.x;
-  let thumbTipY = hand.thumb_tip.y;
-  let pinkyTipX = hand.pinky_finger_tip.x;
-  let pinkyTipY = hand.pinky_finger_tip.y;
-  // Palm center as average of MCP joints
-  let palmJoints = [
-    hand.index_finger_mcp,
-    hand.middle_finger_mcp,
-    hand.ring_finger_mcp,
-    hand.pinky_finger_mcp
-  ];
-  let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
-  let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
+    // Calculate openness as distance between thumb and pinky
+    let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
+    // Map openness to a reasonable scale factor (adjust min/max as needed)
+    let scaleFactor = twoHands ? globalScale : map(openness, 30, 200, 0.7, 2.2, true);
 
-  // Calculate openness as distance between thumb and pinky
-  let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
-  // Map openness to a reasonable scale factor (adjust min/max as needed)
-  let scaleFactor = map(openness, 30, 200, 0.7, 2.2, true); // clamp between 0.7 and 2.2
+    // Interpolate flame position from index to palm as hand opens
+    // t = 0 (closed) -> index, t = 1 (open) -> palm
+    let t = map(openness, 30, 200, 0, 1, true);
+    let flameX = lerp(indexFingerTipX, palmX, t);
+    let flameY = lerp(indexFingerTipY, palmY, t);
 
-  // Interpolate flame position from index to palm as hand opens
-  // t = 0 (closed) -> index, t = 1 (open) -> palm
-  let t = map(openness, 30, 200, 0, 1, true);
-  let flameX = lerp(indexFingerTipX, palmX, t);
-  let flameY = lerp(indexFingerTipY, palmY, t);
-
-  // draw the flame at the interpolated position, scaling with openness
-  flame(flameX, flameY, random(TWO_PI), scaleFactor);
+    // draw the flame at the interpolated position, scaling with openness or wrist distance
+    flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
   }
 }
-function flame(x, y, angle, scaleFactor = 1) {
+function flame(x, y, angle, scaleFactor = 1, blueMode = false) {
   push();
   translate(x, y);
   rotate(angle);
@@ -109,26 +119,39 @@ function flame(x, y, angle, scaleFactor = 1) {
 
   noStroke();
 
-  // outer glow
-  fill(255, 80, 0, 100);
-  ellipse(0, 0, 80, 100);
-
-  // main body
-  fill(255, 140, 0, 180);
-  beginShape();
-  vertex(0, 40);
-  bezierVertex(-20, 10, -10, -40, 0, -60);
-  bezierVertex(10, -40, 20, 10, 0, 40);
-  endShape(CLOSE);
-
-  // inner core (yellow bit)
-  fill(255, 255, 0, 220);
-  beginShape();
-  vertex(0, 30);
-  bezierVertex(-10, 5, -5, -30, 0, -40);
-  bezierVertex(5, -30, 10, 5, 0, 30);
-  endShape(CLOSE);
-
+  if (blueMode) {
+    // blue flame
+    fill(0, 120, 255, 100);
+    ellipse(0, 0, 80, 100);
+    fill(0, 180, 255, 180);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    fill(0, 255, 255, 220);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+  } else {
+    // orange/yellow flame
+    fill(255, 80, 0, 100);
+    ellipse(0, 0, 80, 100);
+    fill(255, 140, 0, 180);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    fill(255, 255, 0, 220);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+  }
   pop();
 }
 
