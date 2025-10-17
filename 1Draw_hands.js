@@ -40,16 +40,8 @@ let pinkyFingerTipY = hand.pinky_finger_tip.y;
 let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
 
 
-    //  let pinkyFingerTipX = hand.pinky_finger_tip.x;
-    //  let pinkyFingerTipY = hand.pinky  _finger_tip.y;
+  //Start drawing on the hands here
 
-    /*
-    Start drawing on the hands here
-    */
-  push();
-  translate (100, 200);
-  flame ();
-  pop ();
   
     //chameleonHandPuppet(hand)
 
@@ -64,7 +56,7 @@ let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
 function drawInteraction(faces, hands) {
   let twoHands = hands.length >= 2;
   let blueMode = false;
-  let globalScale = 1;
+  let globalScale = 0.5;
   if (twoHands) {
     // Calculate thumb tip distance
     let t0 = hands[0].thumb_tip;
@@ -107,6 +99,27 @@ function drawInteraction(faces, hands) {
 
     // draw the flame at the interpolated position, scaling with openness or wrist distance
     flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
+  }
+
+  // --- EYE GLOW LOGIC ---
+  for (let i = 0; i < faces.length; i++) {
+    let face = faces[i];
+    let leftEyeCenterX = face.leftEye.centerX;
+    let leftEyeCenterY = face.leftEye.centerY;
+    let leftEyeWidth = face.leftEye.width;
+    let leftEyeHeight = face.leftEye.height;
+    let rightEyeCenterX = face.rightEye.centerX;
+    let rightEyeCenterY = face.rightEye.centerY;
+    let rightEyeWidth = face.rightEye.width;
+    let rightEyeHeight = face.rightEye.height;
+    noStroke();
+    if (blueMode) {
+      fill(0, 180, 255);
+    } else {
+      fill(225, 225, 0);
+    }
+    ellipse(leftEyeCenterX, leftEyeCenterY, leftEyeWidth, leftEyeHeight);
+    ellipse(rightEyeCenterX, rightEyeCenterY, rightEyeWidth, rightEyeHeight);
   }
 }
 function flame(x, y, angle, scaleFactor = 1, blueMode = false) {
@@ -154,25 +167,6 @@ function flame(x, y, angle, scaleFactor = 1, blueMode = false) {
   }
   pop();
 }
-
-
-function flamer(x, y, angle) {
-  push();
-  strokeWeight (2)
-  stroke ("white")
-  fill ("orange")
-  translate(x, y);
-  rotate(angle - Math.PI/2); // Make flame point away from finger
-  // Optionally scale the flame to fit the finger size
-  // scale(0.2); // Uncomment and adjust if needed
-  beginShape();
-  vertex(0, 50); // bottom center
-  bezierVertex ()
-
-  endShape(CLOSE);
-  pop();
-}
-
 
 function fingerPuppet(x, y) {
   fill(255, 38, 219) // pink
