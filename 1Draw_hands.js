@@ -73,7 +73,13 @@ function drawInteraction(faces, hands) {
     let pinkyDist = dist(hand.pinky_finger_tip.x, hand.pinky_finger_tip.y, palmX, palmY);
     // If ring finger is up and others are down
     if (ringDist > 60 && indexDist < 40 && middleDist < 40 && pinkyDist < 40) {
-      flame(ringTip.x, ringTip.y, random(TWO_PI), 1, false);
+      // Calculate angle from ring MCP to tip
+      let ringMCP = hand.ring_finger_mcp;
+      let baseAngle = Math.atan2(ringTip.y - ringMCP.y, ringTip.x - ringMCP.x);
+      // Add flicker and rotation
+      let flicker = random(0.9, 1.1);
+      let angle = baseAngle + random(-0.2, 0.2);
+      flame(ringTip.x, ringTip.y, angle, flicker, false);
     } else {
       // Otherwise, flame moves to palm center as hand opens
       let thumbTipX = hand.thumb_tip.x;
