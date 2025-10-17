@@ -54,87 +54,35 @@ let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
   //------------------------------------------------------
 }
 function drawInteraction(faces, hands) {
-  let twoHands = hands.length >= 2;
-  let blueMode = false;
-  let globalScale = 0.5;
-  if (twoHands) {
-    // Calculate palm center distance
-    let palmJointsA = [
-      hands[0].index_finger_mcp,
-      hands[0].middle_finger_mcp,
-      hands[0].ring_finger_mcp,
-      hands[0].pinky_finger_mcp
+  if (hands.length === 1) {
+    let hand = hands[0];
+    if (showKeypoints) drawConnections(hand);
+    // Check if only ring finger is up (simple check: ring tip far from palm, others close)
+    let ringTip = hand.ring_finger_tip;
+    let palmJoints = [
+      hand.index_finger_mcp,
+      hand.middle_finger_mcp,
+      hand.ring_finger_mcp,
+      hand.pinky_finger_mcp
     ];
-    let palmAX = (palmJointsA[0].x + palmJointsA[1].x + palmJointsA[2].x + palmJointsA[3].x) / 4;
-    let palmAY = (palmJointsA[0].y + palmJointsA[1].y + palmJointsA[2].y + palmJointsA[3].y) / 4;
-    let palmJointsB = [
-      hands[1].index_finger_mcp,
-      hands[1].middle_finger_mcp,
-      hands[1].ring_finger_mcp,
-      hands[1].pinky_finger_mcp
-    ];
-    let palmBX = (palmJointsB[0].x + palmJointsB[1].x + palmJointsB[2].x + palmJointsB[3].x) / 4;
-    let palmBY = (palmJointsB[0].y + palmJointsB[1].y + palmJointsB[2].y + palmJointsB[3].y) / 4;
-    let palmDist = dist(palmAX, palmAY, palmBX, palmBY);
-    // If hands are apart enough, merge flames
-    if (palmDist > 150) { // threshold for "apart" (adjust as needed)
-      blueMode = true;
-      let midX = (palmAX + palmBX) / 2;
-      let midY = (palmAY + palmBY) / 2;
-      let bigScale = map(palmDist, 150, 500, 1.2, 3, true);
-      flame(midX, midY, 0, bigScale, blueMode);
+    let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
+    let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
+    let ringDist = dist(ringTip.x, ringTip.y, palmX, palmY);
+    let indexDist = dist(hand.index_finger_tip.x, hand.index_finger_tip.y, palmX, palmY);
+    let middleDist = dist(hand.middle_finger_tip.x, hand.middle_finger_tip.y, palmX, palmY);
+    let pinkyDist = dist(hand.pinky_finger_tip.x, hand.pinky_finger_tip.y, palmX, palmY);
+    // If ring finger is up and others are down
+    if (ringDist > 60 && indexDist < 40 && middleDist < 40 && pinkyDist < 40) {
+      flame(ringTip.x, ringTip.y, random(TWO_PI), 1, false);
     } else {
-      // Draw individual flames
-      for (let i = 0; i < hands.length; i++) {
-        let hand = hands[i];
-        if (showKeypoints) drawConnections(hand);
-        let indexFingerTipX = hand.index_finger_tip.x;
-        let indexFingerTipY = hand.index_finger_tip.y;
-        let thumbTipX = hand.thumb_tip.x;
-        let thumbTipY = hand.thumb_tip.y;
-        let pinkyTipX = hand.pinky_finger_tip.x;
-        let pinkyTipY = hand.pinky_finger_tip.y;
-        let palmJoints = [
-          hand.index_finger_mcp,
-          hand.middle_finger_mcp,
-          hand.ring_finger_mcp,
-          hand.pinky_finger_mcp
-        ];
-        let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
-        let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
-        let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
-        let scaleFactor = map(openness, 30, 200, 0.7, 2.2, true);
-        let t = map(openness, 30, 200, 0, 1, true);
-        let flameX = lerp(indexFingerTipX, palmX, t);
-        let flameY = lerp(indexFingerTipY, palmY, t);
-        flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
-      }
-    }
-  } else {
-    // One hand: draw individual flame
-    for (let i = 0; i < hands.length; i++) {
-      let hand = hands[i];
-      if (showKeypoints) drawConnections(hand);
-      let indexFingerTipX = hand.index_finger_tip.x;
-      let indexFingerTipY = hand.index_finger_tip.y;
+      // Otherwise, flame moves to palm center as hand opens
       let thumbTipX = hand.thumb_tip.x;
       let thumbTipY = hand.thumb_tip.y;
       let pinkyTipX = hand.pinky_finger_tip.x;
       let pinkyTipY = hand.pinky_finger_tip.y;
-      let palmJoints = [
-        hand.index_finger_mcp,
-        hand.middle_finger_mcp,
-        hand.ring_finger_mcp,
-        hand.pinky_finger_mcp
-      ];
-      let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
-      let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
       let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
       let scaleFactor = map(openness, 30, 200, 0.7, 2.2, true);
-      let t = map(openness, 30, 200, 0, 1, true);
-      let flameX = lerp(indexFingerTipX, palmX, t);
-      let flameY = lerp(indexFingerTipY, palmY, t);
-      flame(flameX, flameY, random(TWO_PI), scaleFactor, false);
+      flame(palmX, palmY, 0, scaleFactor, false);
     }
   }
 
