@@ -40,92 +40,62 @@ let pinkyFingerTipY = hand.pinky_finger_tip.y;
 let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
 
 
-  //Start drawing on the hands here
-
-  push();
-  translate (100, 200);
-  flame ();
-  pop ();
+  //Start drawing on the hands he
   
-    //chameleonHandPuppet(hand)
-
-    /*
-    Stop drawing on the hands here
-    */
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
 
   //------------------------------------------------------
 }
+let twoHands = hands.length >= 2;
+let blueMode = false;
+let globalScale = 2;
+if (twoHands) {
+  // Calculate thumb tip distance
+  let t0 = hands[0].thumb_tip;
+  let t1 = hands[1].thumb_tip;
+  let thumbDist = dist(t0.x, t0.y, t1.x, t1.y);
+  // Map thumb distance to scale (adjust min/max as needed)
+  globalScale = map(thumbDist, 50, 500, 0.7, 2.5, true);
+  blueMode = true;
+}
+for (let i = 0; i < hands.length; i++) {
+  let hand = hands[i];
+  if (showKeypoints) drawConnections(hand);
+
+  // get index fingertip and palm center (average of MCP joints)
+  let indexFingerTipX = hand.index_finger_tip.x;
+  let indexFingerTipY = hand.index_finger_tip.y;
+  let thumbTipX = hand.thumb_tip.x;
+  let thumbTipY = hand.thumb_tip.y;
+  let pinkyTipX = hand.pinky_finger_tip.x;
+  let pinkyTipY = hand.pinky_finger_tip.y;
+  // Palm center as average of MCP joints
+  let palmJoints = [
+    hand.index_finger_mcp,
+    hand.middle_finger_mcp,
+    hand.ring_finger_mcp,
+    hand.pinky_finger_mcp
+  ];
+  let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
+  let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
+
+  // Calculate openness as distance between thumb and pinky
+  let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
+  // Map openness to a reasonable scale factor (adjust min/max as needed)
+  let scaleFactor = twoHands ? globalScale : map(openness, 30, 200, 0.7, 2.2, true);
+
+  // Interpolate flame position from index to palm as hand opens
+  // t = 0 (closed) -> index, t = 1 (open) -> palm
+  let t = map(openness, 30, 200, 0, 1, true);
+  let flameX = lerp(indexFingerTipX, palmX, t);
+  let flameY = lerp(indexFingerTipY, palmY, t);
+
+  // draw the flame at the interpolated position, scaling with openness or wrist distance
+  flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
+}
 function drawInteraction(faces, hands) {
-  let twoHands = hands.length >= 2;
-  let blueMode = false;
-  let globalScale = 2;
-  if (twoHands) {
-    // Calculate thumb tip distance
-    let t0 = hands[0].thumb_tip;
-    let t1 = hands[1].thumb_tip;
-    let thumbDist = dist(t0.x, t0.y, t1.x, t1.y);
-    // Map thumb distance to scale (adjust min/max as needed)
-    globalScale = map(thumbDist, 50, 500, 0.7, 2.5, true);
-    blueMode = true;
-  }
-  for (let i = 0; i < hands.length; i++) {
-    let hand = hands[i];
-    if (showKeypoints) drawConnections(hand);
 
-    // get index fingertip and palm center (average of MCP joints)
-    let indexFingerTipX = hand.index_finger_tip.x;
-    let indexFingerTipY = hand.index_finger_tip.y;
-    let thumbTipX = hand.thumb_tip.x;
-    let thumbTipY = hand.thumb_tip.y;
-    let pinkyTipX = hand.pinky_finger_tip.x;
-    let pinkyTipY = hand.pinky_finger_tip.y;
-    // Palm center as average of MCP joints
-    let palmJoints = [
-      hand.index_finger_mcp,
-      hand.middle_finger_mcp,
-      hand.ring_finger_mcp,
-      hand.pinky_finger_mcp
-    ];
-    let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
-    let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
-
-    // Calculate openness as distance between thumb and pinky
-    let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
-    // Map openness to a reasonable scale factor (adjust min/max as needed)
-    let scaleFactor = twoHands ? globalScale : map(openness, 30, 200, 0.7, 2.2, true);
-
-    // Interpolate flame position from index to palm as hand opens
-    // t = 0 (closed) -> index, t = 1 (open) -> palm
-    let t = map(openness, 30, 200, 0, 1, true);
-    let flameX = lerp(indexFingerTipX, palmX, t);
-    let flameY = lerp(indexFingerTipY, palmY, t);
-
-    // draw the flame at the interpolated position, scaling with openness or wrist distance
-    flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
-  }
-
-  // --- EYE GLOW LOGIC ---
-  for (let i = 0; i < faces.length; i++) {
-    let face = faces[i];
-    let leftEyeCenterX = face.leftEye.centerX;
-    let leftEyeCenterY = face.leftEye.centerY;
-    let leftEyeWidth = face.leftEye.width;
-    let leftEyeHeight = face.leftEye.height;
-    let rightEyeCenterX = face.rightEye.centerX;
-    let rightEyeCenterY = face.rightEye.centerY;
-    let rightEyeWidth = face.rightEye.width;
-    let rightEyeHeight = face.rightEye.height;
-    noStroke();
-    if (blueMode) {
-      fill(0, 180, 255);
-    } else {
-      fill(225, 225, 0);
-    }
-    ellipse(leftEyeCenterX, leftEyeCenterY, leftEyeWidth, leftEyeHeight);
-    ellipse(rightEyeCenterX, rightEyeCenterY, rightEyeWidth, rightEyeHeight);
-  }
 }
 function flame(x, y, angle, scaleFactor = 1, blueMode = false) {
   push();
@@ -180,27 +150,6 @@ function fingerPuppet(x, y) {
 
   fill(255, 252, 48) // yellow
   ellipse(x, y, 20) // draw center 
-
-}
-
-
-function pinchCircle(hand) { // adapted from https://editor.p5js.org/ml5/sketches/DNbSiIYKB
-  // Find the index finger tip and thumb tip
-  let finger = hand.index_finger_tip;
-  //let finger = hand.pinky_finger_tip;
-  let thumb = hand.thumb_tip;
-
-  // Draw circles at finger positions
-  let centerX = (finger.x + thumb.x) / 2;
-  let centerY = (finger.y + thumb.y) / 2;
-  // Calculate the pinch "distance" between finger and thumb
-  let pinch = dist(finger.x, finger.y, thumb.x, thumb.y);
-
-  // This circle's size is controlled by a "pinch" gesture
-  fill(0, 255, 0, 200);
-  stroke(0);
-  strokeWeight(2);
-  circle(centerX, centerY, pinch);
 
 }
 
