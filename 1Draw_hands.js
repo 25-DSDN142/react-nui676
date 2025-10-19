@@ -104,14 +104,6 @@ let pinkyFingerDipZ = hand.pinky_finger_dip.z3D;
 
 let pinkyFingerTipX = hand.pinky_finger_tip.x;
 let pinkyFingerTipY = hand.pinky_finger_tip.y;
-        
-    // Map flame size to distance between pinky and thumb (wider = bigger)
-    let pinkyTipX = hand.pinky_finger_tip.x;
-    let pinkyTipY = hand.pinky_finger_tip.y;
-    let thumbTipX = hand.thumb_tip.x;
-    let thumbTipY = hand.thumb_tip.y;
-    let pinkyThumbDist = dist(pinkyTipX, pinkyTipY, thumbTipX, thumbTipY);
-    let scaleFactor = map(pinkyThumbDist, 30, 200, 0.7, 2.2, true);
 let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
 
 
@@ -162,47 +154,5 @@ function flame (x, y, angle){
   endShape (CLOSE);
   pop();
   //
-function flame (x, y, angle, scaleFactor = 1, blueMode = false) {
-  push();
-  translate(x, y);
-  rotate(angle);
-  let flicker = random(0.9, 1.1);
-  scale(flicker * scaleFactor);
-  noStroke();
-  if (blueMode) {
-    // blue flame
-    fill(0, 120, 255, 100);
-    ellipse(0, 0, 80, 100);
-    fill(0, 180, 255, 180);
-    beginShape();
-    vertex(0, 40);
-    bezierVertex(-20, 10, -10, -40, 0, -60);
-    bezierVertex(10, -40, 20, 10, 0, 40);
-    endShape(CLOSE);
-    fill(0, 255, 255, 220);
-    beginShape();
-    vertex(0, 30);
-    bezierVertex(-10, 5, -5, -30, 0, -40);
-    bezierVertex(5, -30, 10, 5, 0, 30);
-    endShape(CLOSE);
-  } else {
-    // orange/yellow flame
-    fill(255, 80, 0, 100);
-    ellipse(0, 0, 80, 100);
-    fill(255, 140, 0, 180);
-    beginShape();
-    vertex(0, 40);
-    bezierVertex(-20, 10, -10, -40, 0, -60);
-    bezierVertex(10, -40, 20, 10, 0, 40);
-    endShape(CLOSE);
-    fill(255, 255, 0, 220);
-    beginShape();
-    vertex(0, 30);
-    bezierVertex(-10, 5, -5, -30, 0, -40);
-    bezierVertex(5, -30, 10, 5, 0, 30);
-    endShape(CLOSE);
-  }
-  pop();
-}
 
 }
