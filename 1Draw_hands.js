@@ -37,21 +37,13 @@ let thumbTipZ = hand.thumb_tip.z3D;
    let middleOfHandX = (middleFingerTipX + wristX) / 2
    let middleOfHandY = (middleFingerTipY + wristY) / 2
 
-    fill(225, 225, 0);
-    ellipse(middleOfHandX, middleOfHandY, 30, 30);
+   
+  flame (middleOfHandX, middleOfHandY, 1);
 
-    fill (0);
-    rect (wristX, wristY, 30, 30);
-
-    strokeWeight(2);
-    stroke (0);
-    line (middleFingerTipX, middleFingerTipY, indexFingerTipX, indexFingerTipY);
-    line (thumbTipX, thumbTipY, middleFingerTipX, middleFingerTipY);
   
 
     //drawPoints(hand)
-
-    fingerPuppet(indexFingerTipX, indexFingerTipY);
+    flame(indexFingerTipX, indexFingerTipY, 2);
 
     
 
@@ -65,9 +57,70 @@ let thumbTipZ = hand.thumb_tip.z3D;
   //------------------------------------------------------
 }
 
+function flame(x, y, angle, scaleFactor = 2) {
+  push();
+  translate(x, y);
+  // guard angle (if caller didn't pass it)
+  if (typeof angle === 'undefined' || isNaN(angle)) angle = 0;
+  rotate(angle);
+
+  // subtle flicker
+  let flicker = random(0.9, 1.1);
+  scale(flicker * scaleFactor);
+
+  noStroke();
+
+  // outer glow (unchanging)
+  fill(255, 80, 0, 100);
+  ellipse(0, 0, 80, 100);
+
+  // main body (unchanging)
+  push();
+  let spinSpeeds = 1; // radians per frame multiplier
+  let offsets = ((x || 0) + (y || 0)) * 0.01; // i dont know what this is i just asked co pilot to make it spin
+  let spins = frameCount * spinSpeeds + offsets;
+  rotate(spins);
+  fill(255, 140, 0, 180);
+  beginShape();
+  vertex(0, 40);
+  bezierVertex(-20, 10, -10, -40, 0, -60);
+  bezierVertex(10, -40, 20, 10, 0, 40);
+  endShape(CLOSE);
+  pop();
+
+  push();
+  let spinSpeed = 1; // radians per frame multiplier
+  let offset = ((x || 0) + (y || 0)) * 0.01; 
+  let spin = frameCount * spinSpeed + offset;
+  rotate(spin);
+  fill(255, 255, 0, 220);
+  beginShape();
+  vertex(0, 30);
+  bezierVertex(-10, 5, -5, -30, 0, -40);
+  bezierVertex(5, -30, 10, 5, 0, 30);
+  endShape(CLOSE);
+  pop();
+
+  pop();
+}
 
 
+function chatflame (x, y) {
+  
+  beginShape();
+  vertex(200, 450);          // bottom center
 
+  // left side curve
+  bezierVertex(120, 400, 80, 300, 150, 200);
+  bezierVertex(100, 100, 160, 50, 200, 80);
+
+  // right side curve
+  bezierVertex(240, 50, 300, 100, 250, 200);
+  bezierVertex(320, 300, 280, 400, 200, 450);
+
+  endShape(CLOSE);
+
+}
 
 
 function fingerPuppet(x, y) {
