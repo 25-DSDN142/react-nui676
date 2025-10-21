@@ -7,81 +7,107 @@ function prepareInteraction() {
 function drawInteraction(faces, hands) {
   // hands part
   // for loop to capture if there is more than one hand on the screen. This applies the same process to all hands.
-  if (hands.length === 2) {
-    // Get middle finger tips
-    let m1 = hands[0].middle_finger_tip;
-    let m2 = hands[1].middle_finger_tip;
-    let distMF = dist(m1.x, m1.y, m2.x, m2.y);
-    // Get palm centers
-    let palm1 = (hands[0].index_finger_mcp.x + hands[0].middle_finger_mcp.x + hands[0].ring_finger_mcp.x + hands[0].pinky_finger_mcp.x + hands[0].wrist.x) / 5;
-    let palm2 = (hands[1].index_finger_mcp.x + hands[1].middle_finger_mcp.x + hands[1].ring_finger_mcp.x + hands[1].pinky_finger_mcp.x + hands[1].wrist.x) / 5;
-    let palm1Y = (hands[0].index_finger_mcp.y + hands[0].middle_finger_mcp.y + hands[0].ring_finger_mcp.y + hands[0].pinky_finger_mcp.y + hands[0].wrist.y) / 5;
-    let palm2Y = (hands[1].index_finger_mcp.y + hands[1].middle_finger_mcp.y + hands[1].ring_finger_mcp.y + hands[1].pinky_finger_mcp.y + hands[1].wrist.y) / 5;
-    // Midpoint between palms
-    let midX = (palm1 + palm2) / 2;
-    let midY = (palm1Y + palm2Y) / 2;
-    // Map distance to scale
-    let minDist = 50, maxDist = 300;
-    let minScale = 0.7, maxScale = 2.5;
-    let scaleFactor = map(distMF, minDist, maxDist, minScale, maxScale, true);
-    // If hands are close, draw one flame
-    if (distMF < 150) {
-      flame(midX, midY, random(TWO_PI), scaleFactor, true, false);
-    } else {
-      // Otherwise, draw individual blue flames on each palm
-      flame(palm1, palm1Y, random(TWO_PI), 1, true, false);
-      flame(palm2, palm2Y, random(TWO_PI), 1, true, false);
-    }
-    return;
-  }
-  // Single hand or more than two: normal gesture logic
   for (let i = 0; i < hands.length; i++) {
     let hand = hands[i];
-    if (showKeypoints) drawConnections(hand);
-    let gesture = detectHandGesture(hand);
-    if (gesture === "Peace") {
-      flame(hand.index_finger_tip.x, hand.index_finger_tip.y, random(TWO_PI), 1, false, true);
-      flame(hand.middle_finger_tip.x, hand.middle_finger_tip.y, random(TWO_PI), 1, false, true);
-      continue;
+    //console.log(hand);
+    if (showKeypoints) {
+      drawConnections(hand)
     }
-    if (gesture === "Open Palm") {
-      let palmCenterX = (hand.index_finger_mcp.x + hand.middle_finger_mcp.x + hand.ring_finger_mcp.x + hand.pinky_finger_mcp.x + hand.wrist.x) / 5;
-      let palmCenterY = (hand.index_finger_mcp.y + hand.middle_finger_mcp.y + hand.ring_finger_mcp.y + hand.pinky_finger_mcp.y + hand.wrist.y) / 5;
-      let scaleFactor = map(dist(hand.pinky_finger_tip.x, hand.pinky_finger_tip.y, hand.thumb_tip.x, hand.thumb_tip.y), 30, 200, 0.7, 2.2, true);
-      flame(palmCenterX, palmCenterY, random(TWO_PI), scaleFactor, false, true);
-      continue;
-    }
-    flame(hand.index_finger_tip.x, hand.index_finger_tip.y, random(TWO_PI));
+
+    // This is how to load in the x and y of a point on the hand.
+    let indexFingerTipX = hand.index_finger_tip.x;
+    let indexFingerTipY = hand.index_finger_tip.y;
+
+    let wristX = hand.wrist.x;
+    let wristY = hand.wrist.y;
+    let wristZ = hand.wrist.z3D;
+
+
+    let middleFingerTipX = hand.middle_finger_tip.x;
+    let middleFingerTipY = hand.middle_finger_tip.y;
+    let middleFingerTipZ = hand.middle_finger_tip.z3D;
+
+let thumbTipX = hand.thumb_tip.x;
+let thumbTipY = hand.thumb_tip.y;
+let thumbTipZ = hand.thumb_tip.z3D;
+
+let ringFingerTipX = hand.ring_finger_tip.x;
+let ringFingerTipY = hand.ring_finger_tip.y;
+let ringFingerTipZ = hand.ring_finger_tip.z3D;
+
+let pinkyFingerTipX = hand.pinky_finger_tip.x;
+let pinkyFingerTipY = hand.pinky_finger_tip.y;
+let pinkyFingerTipZ = hand.pinky_finger_tip.z3D;
+
+
+  //Start drawing on the hands he
+  
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
 
   //------------------------------------------------------
 }
+let twoHands = hands.length >= 2;
+let blueMode = false;
+let globalScale = 2;
+if (twoHands) {
+  // Calculate thumb tip distance
+  let t0 = hands[0].thumb_tip;
+  let t1 = hands[1].thumb_tip;
+  let thumbDist = dist(t0.x, t0.y, t1.x, t1.y);
+  // Map thumb distance to scale (adjust min/max as needed)
+  globalScale = map(thumbDist, 50, 500, 0.7, 2.5, true);
+  blueMode = true;
+}
+for (let i = 0; i < hands.length; i++) {
+  let hand = hands[i];
+  if (showKeypoints) drawConnections(hand);
 
-function flame(x, y, angle, scaleFactor = 1, blueMode = false, redMode = false) {
+  // get index fingertip and palm center (average of MCP joints)
+  let indexFingerTipX = hand.index_finger_tip.x;
+  let indexFingerTipY = hand.index_finger_tip.y;
+  let thumbTipX = hand.thumb_tip.x;
+  let thumbTipY = hand.thumb_tip.y;
+  let pinkyTipX = hand.pinky_finger_tip.x;
+  let pinkyTipY = hand.pinky_finger_tip.y;
+  // Palm center as average of MCP joints
+  let palmJoints = [
+    hand.index_finger_mcp,
+    hand.middle_finger_mcp,
+    hand.ring_finger_mcp,
+    hand.pinky_finger_mcp
+  ];
+  let palmX = (palmJoints[0].x + palmJoints[1].x + palmJoints[2].x + palmJoints[3].x) / 4;
+  let palmY = (palmJoints[0].y + palmJoints[1].y + palmJoints[2].y + palmJoints[3].y) / 4;
+
+  // Calculate openness as distance between thumb and pinky
+  let openness = dist(thumbTipX, thumbTipY, pinkyTipX, pinkyTipY);
+  // Map openness to a reasonable scale factor (adjust min/max as needed)
+  let scaleFactor = twoHands ? globalScale : map(openness, 30, 200, 0.7, 2.2, true);
+
+  // Interpolate flame position from index to palm as hand opens
+  // t = 0 (closed) -> index, t = 1 (open) -> palm
+  let t = map(openness, 30, 200, 0, 1, true);
+  let flameX = lerp(indexFingerTipX, palmX, t);
+  let flameY = lerp(indexFingerTipY, palmY, t);
+
+  // draw the flame at the interpolated position, scaling with openness or wrist distance
+  flame(flameX, flameY, random(TWO_PI), scaleFactor, blueMode);
+}
+function drawInteraction(faces, hands) {
+
+}
+function flame(x, y, angle, scaleFactor = 1, blueMode = false) {
   push();
   translate(x, y);
   rotate(angle);
+  // subtle flicker
   let flicker = random(0.9, 1.1);
   scale(flicker * scaleFactor);
+
   noStroke();
-  if (redMode) {
-    // vibrant red flame.
-    fill(255, 0, 0, 120);
-    ellipse(0, 0, 80, 100);
-    fill(255, 40, 40, 200);
-    beginShape();
-    vertex(0, 40);
-    bezierVertex(-20, 10, -10, -40, 0, -60);
-    bezierVertex(10, -40, 20, 10, 0, 40);
-    endShape(CLOSE);
-    fill(255, 100, 100, 255);
-    beginShape();
-    vertex(0, 30);
-    bezierVertex(-10, 5, -5, -30, 0, -40);
-    bezierVertex(5, -30, 10, 5, 0, 30);
-    endShape(CLOSE);
-  } else if (blueMode) {
+
+  if (blueMode) {
     // blue flame
     fill(0, 120, 255, 100);
     ellipse(0, 0, 80, 100);
@@ -115,4 +141,69 @@ function flame(x, y, angle, scaleFactor = 1, blueMode = false, redMode = false) 
     endShape(CLOSE);
   }
   pop();
+}
+
+function fingerPuppet(x, y) {
+  fill(255, 38, 219) // pink
+  ellipse(x, y, 100, 20)
+  ellipse(x, y, 20, 100)
+
+  fill(255, 252, 48) // yellow
+  ellipse(x, y, 20) // draw center 
+
+}
+
+function chameleonHandPuppet(hand) {
+  // Find the index finger tip and thumb tip
+  // let finger = hand.index_finger_tip;
+
+  let finger = hand.middle_finger_tip; // this finger now contains the x and y infomation! you can access it by using finger.x 
+  let thumb = hand.thumb_tip;
+
+  // Draw circles at finger positions
+  let centerX = (finger.x + thumb.x) / 2;
+  let centerY = (finger.y + thumb.y) / 2;
+  // Calculate the pinch "distance" between finger and thumb
+  let pinch = dist(finger.x, finger.y, thumb.x, thumb.y);
+
+  // This circle's size is controlled by a "pinch" gesture
+  fill(0, 255, 0, 200);
+  stroke(0);
+  strokeWeight(2);
+  circle(centerX, centerY, pinch);
+
+  let indexFingerTipX = hand.index_finger_tip.x;
+  let indexFingerTipY = hand.index_finger_tip.y;
+  fill(0)
+  circle(indexFingerTipX, indexFingerTipY, 20);
+
+}
+
+function drawConnections(hand) {
+  // Draw the skeletal connections
+  push()
+  for (let j = 0; j < connections.length; j++) {
+    let pointAIndex = connections[j][0];
+    let pointBIndex = connections[j][1];
+    let pointA = hand.keypoints[pointAIndex];
+    let pointB = hand.keypoints[pointBIndex];
+    stroke(255, 0, 0);
+    strokeWeight(2);
+    line(pointA.x, pointA.y, pointB.x, pointB.y);
+  }
+  pop()
+}
+
+
+// This function draw's a dot on all the keypoints. It can be passed a whole face, or part of one. 
+function drawPoints(feature) {
+  push()
+  for (let i = 0; i < feature.keypoints.length; i++) {
+    let element = feature.keypoints[i];
+    noStroke();
+    fill(0, 255, 0);
+    circle(element.x, element.y, 10);
+  }
+  pop()
+
 }
