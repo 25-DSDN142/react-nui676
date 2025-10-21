@@ -66,7 +66,7 @@ function flame(x, y, angle, scaleFactor = 1, blueMode = false, redMode = false) 
   scale(flicker * scaleFactor);
   noStroke();
   if (redMode) {
-    // vibrant red flame
+    // vibrant red flame.
     fill(255, 0, 0, 120);
     ellipse(0, 0, 80, 100);
     fill(255, 40, 40, 200);
