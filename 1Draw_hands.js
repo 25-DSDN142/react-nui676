@@ -54,19 +54,27 @@ function drawInteraction(faces, hands) {
       let w1y = h1.wrist.y;
       let wristDist2D = dist(w0x, w0y, w1x, w1y);
       // thresholds (px) - tuneable
-      const mergeStart = 200; // begin showing merge when wrists are closer than this (px)
-      const mergeFull = 40;   // fully merged when very close (px)
-      let targetAlpha = 0;
-      if (wristDist2D < mergeStart || twoHandsMergeLocked) {
-        // start activating or keep active if locked
-        targetAlpha = map(wristDist2D, mergeStart, 0, 0, 1, true);
-      }
-      twoHandsMergedAlpha = lerp(twoHandsMergedAlpha, targetAlpha, 0.18);
+      const flameStartDist = 50;  // Flame appears when wrists are this far apart
+      const flameMaxDist = 300;   // Flame is at max size and disappears beyond this
 
-      // scale: allow larger merged flame when wrists are closer
-      const mergedMaxScale = 3.2;
-      const mergedMinScale = 0.6;
-      let targetScale = map(wristDist2D, mergeFull, mergeStart, mergedMaxScale, mergedMinScale, true);
+      let targetAlpha = 0;
+      let targetScale = 0;
+
+      // Check if the wrist distance is within the active range
+      if (wristDist2D > flameStartDist && wristDist2D < flameMaxDist) {
+        // If we are in the sweet spot, the flame is visible
+        targetAlpha = 1.0;
+        // The scale of the flame is linked to the distance between the wrists.
+        // It starts small and gets bigger as the wrists move apart.
+        targetScale = map(wristDist2D, flameStartDist, flameMaxDist, 0.5, 4.0, true);
+      } else {
+        // If the wrists are too close or too far, the flame should not be visible.
+        targetAlpha = 0;
+        targetScale = 0;
+      }
+
+      // Smoothly transition the alpha and scale values to prevent jerky movements
+      twoHandsMergedAlpha = lerp(twoHandsMergedAlpha, targetAlpha, 0.18);
       twoHandsMergedScale = lerp(twoHandsMergedScale, targetScale, 0.18);
 
       // compute a 'top of wrist' point for each hand (a fraction toward the middle fingertip)
