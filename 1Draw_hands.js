@@ -197,8 +197,8 @@ function drawInteraction(faces, hands) {
 
       // compute depth-based scale (prefer z3D if available)
       let targetScale = 1;
-      const minScale = 0.6; // when closest
-      const maxScale = 2.2; // when farthest
+      const minScale = 0.2; // when closest
+      const maxScale = 0.8; // when farthest
 
       if (typeof middleFingerTipZ !== 'undefined' && middleFingerTipZ !== null) {
         // many models use negative z for closer points; negate to get "larger = closer"
