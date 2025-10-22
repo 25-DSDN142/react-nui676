@@ -24,7 +24,9 @@ let shootingMode = false;
 let projectiles = []; // Array to store active projectiles
 let lastGestureByHand = {}; // Track last gesture per hand to detect transitions
 let shotCooldownByHand = {}; // Cooldown timer for each hand
+let muzzleFlashByHand = {}; // Muzzle flash timer for each hand
 const SHOT_COOLDOWN = 10; // Frames between shots (10 = ~6 shots per second at 60fps)
+const MUZZLE_FLASH_DURATION = 3; // Frames to show muzzle flash
 
 // Projectile class
 class Projectile {
@@ -215,10 +217,18 @@ function drawInteraction(faces, hands) {
    if (!shotCooldownByHand[handId]) {
      shotCooldownByHand[handId] = 0;
    }
+   if (!muzzleFlashByHand[handId]) {
+     muzzleFlashByHand[handId] = 0;
+   }
    
    // Decrease cooldown timer
    if (shotCooldownByHand[handId] > 0) {
      shotCooldownByHand[handId]--;
+   }
+   
+   // Decrease muzzle flash timer
+   if (muzzleFlashByHand[handId] > 0) {
+     muzzleFlashByHand[handId]--;
    }
    
    // Shoot when pointing, shooting mode is on, and cooldown is ready
@@ -228,8 +238,9 @@ function drawInteraction(faces, hands) {
      // Create projectile from fingertip
      projectiles.push(new Projectile(indexFingerTipX, indexFingerTipY, shootAngle));
      console.log("Fireball shot! Angle:", shootAngle);
-     // Reset cooldown
+     // Reset cooldown and trigger muzzle flash
      shotCooldownByHand[handId] = SHOT_COOLDOWN;
+     muzzleFlashByHand[handId] = MUZZLE_FLASH_DURATION;
    }
 
    // only draw palm flame if hand is not a 'Fist', 'Pointing', index/thumb are not touching, and not Peace gesture
@@ -252,14 +263,15 @@ function drawInteraction(faces, hands) {
     console.log("Peace gesture detected! Distance:", imDist, "Shooting mode:", shootingMode);
     
     if (shootingMode) {
-      // In shooting mode: shoot a red projectile when fingers are close
-      const shootThreshold = 80; // pixels - how close fingers need to be to shoot (increased threshold)
+      // In shooting mode: show red flame that grows as fingers get closer, shoot when they touch
+      const shootThreshold = 100; // pixels - shoot when fingers are closer than this
       
-      console.log("Peace in shooting mode. Distance:", imDist, "Threshold:", shootThreshold);
-      
-      // Initialize peace shot cooldown
+      // Initialize peace shot cooldown and muzzle flash
       if (!shotCooldownByHand[handId + '_peace']) {
         shotCooldownByHand[handId + '_peace'] = 0;
+      }
+      if (!muzzleFlashByHand[handId + '_peace']) {
+        muzzleFlashByHand[handId + '_peace'] = 0;
       }
       
       // Decrease peace cooldown
@@ -267,7 +279,28 @@ function drawInteraction(faces, hands) {
         shotCooldownByHand[handId + '_peace']--;
       }
       
-      // Shoot red projectile when fingers are together
+      // Decrease peace muzzle flash
+      if (muzzleFlashByHand[handId + '_peace'] > 0) {
+        muzzleFlashByHand[handId + '_peace']--;
+      }
+      
+      // Only show red flame as muzzle flash when shooting
+      if (muzzleFlashByHand[handId + '_peace'] > 0) {
+        // Map distance to flame scale (closer = bigger)
+        let targetScale = map(imDist, 10, 150, 3.0, 0.5, true);
+        mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
+        mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
+        
+        // Compute angle for the flame
+        let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
+                        atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
+        
+        // Draw red flame between fingers (muzzle flash)
+        let flashAlpha = muzzleFlashByHand[handId + '_peace'] / MUZZLE_FLASH_DURATION;
+        flame(midX, midY, angleMid, mergedScaleByHand[i], true, flashAlpha);
+      }
+      
+      // Shoot red projectile continuously when peace gesture is active and fingers are close
       if (imDist < shootThreshold && shotCooldownByHand[handId + '_peace'] === 0) {
         // Calculate angle from wrist to midpoint
         let shootAngle = atan2(midY - wristY, midX - wristX);
@@ -275,11 +308,10 @@ function drawInteraction(faces, hands) {
         let redProjectile = new Projectile(midX, midY, shootAngle, 15);
         redProjectile.isRed = true; // Mark as red projectile
         projectiles.push(redProjectile);
-        console.log("Red fireball shot from peace gesture! Projectile created at:", midX, midY);
-        // Set longer cooldown for peace shot (more powerful)
-        shotCooldownByHand[handId + '_peace'] = SHOT_COOLDOWN * 2;
-      } else {
-        console.log("Peace shot blocked. Distance too far or cooldown active. Cooldown:", shotCooldownByHand[handId + '_peace']);
+        console.log("Red fireball shot! Distance:", imDist);
+        // Shorter cooldown for rapid fire and trigger muzzle flash
+        shotCooldownByHand[handId + '_peace'] = SHOT_COOLDOWN * 1.5;
+        muzzleFlashByHand[handId + '_peace'] = MUZZLE_FLASH_DURATION;
       }
     } else {
       // Normal mode: display purple flame
@@ -303,7 +335,14 @@ function drawInteraction(faces, hands) {
     let targetAlpha = (gesture === 'Pointing') ? 1 : 0;
     pointingAlphaByHand[i] = lerp(pointingAlphaByHand[i], targetAlpha, 0.25);
 
-    if (pointingAlphaByHand[i] > 0.02) {
+    // In shooting mode, only show muzzle flash, not constant flame
+    let showFlame = pointingAlphaByHand[i] > 0.02;
+    if (shootingMode) {
+      // Only show as muzzle flash when actually shooting
+      showFlame = muzzleFlashByHand[handId] > 0;
+    }
+
+    if (showFlame) {
       // compute angle for index flame
       let angleIdx = 0;
       if (typeof wristX !== 'undefined' && typeof wristY !== 'undefined') {
@@ -336,8 +375,9 @@ function drawInteraction(faces, hands) {
       middleScaleByHand[i] = middleScaleByHand[i] || targetScale;
       middleScaleByHand[i] = lerp(middleScaleByHand[i], targetScale, 0.2);
 
-      // draw orange flame at index with alpha fade
-      flame(indexFingerTipX, indexFingerTipY, angleIdx, middleScaleByHand[i], false, pointingAlphaByHand[i]);
+      // draw orange flame at index with alpha fade (or muzzle flash in shooting mode)
+      let finalAlpha = shootingMode ? (muzzleFlashByHand[handId] / MUZZLE_FLASH_DURATION) : pointingAlphaByHand[i];
+      flame(indexFingerTipX, indexFingerTipY, angleIdx, middleScaleByHand[i], false, finalAlpha);
     }
   }
 
