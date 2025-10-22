@@ -4,8 +4,76 @@ function prepareInteraction() {
   //bgImage = loadImage('/images/background.png');
 }
 
+// per-hand smoothed palm scales
+let palmScaleByHand = {};
+// per-hand smoothed merged flame scales (for Peace gesture)
+let mergedScaleByHand = {};
+// per-hand smoothed index (pointing) scale and alpha
+let middleScaleByHand = {};
+let pointingAlphaByHand = {};
+// per-hand smoothed ring (third finger) scale
+let ringScaleByHand = {};
+// per-hand smoothed purple merged scale (when three fingers come together)
+let purpleMergedScaleByHand = {};
+// per-hand alpha for merged/single purple flame
+let purpleMergedAlphaByHand = {};
+// two-hands merged palm state (single blue flame between palms)
+let twoHandsMergedAlpha = 0;
+let twoHandsMergedScale = 1;
+
+// helper: true when index+middle+ring are extended and thumb+pinky are down
+function isThreeFingersUp(hand) {
+  if (!hand) return false;
+  try {
+    let indexUp = hand.index_finger_tip.y < hand.index_finger_pip.y - 18;
+    let middleUp = hand.middle_finger_tip.y < hand.middle_finger_pip.y - 18;
+    let ringUp = hand.ring_finger_tip.y < hand.ring_finger_pip.y - 18;
+    let thumbDown = hand.thumb_tip.y > hand.thumb_ip.y - 6; // thumb roughly folded
+    let pinkyDown = hand.pinky_finger_tip.y > hand.pinky_finger_pip.y;
+    return indexUp && middleUp && ringUp && thumbDown && pinkyDown;
+  } catch (e) {
+    return false;
+  }
+}
+
 function drawInteraction(faces, hands) {
   // hands part
+  // Precompute two-hand palm merge state if there are two hands
+  let twoHands = hands && hands.length >= 2;
+  let mergedPalmCenter = null;
+  if (twoHands) {
+    let h0 = hands[0];
+    let h1 = hands[1];
+    if (h0 && h1 && h0.middle_finger_tip && h0.wrist && h1.middle_finger_tip && h1.wrist) {
+      let c0x = (h0.middle_finger_tip.x + h0.wrist.x) / 2;
+      let c0y = (h0.middle_finger_tip.y + h0.wrist.y) / 2;
+      let c1x = (h1.middle_finger_tip.x + h1.wrist.x) / 2;
+      let c1y = (h1.middle_finger_tip.y + h1.wrist.y) / 2;
+      let palmDist = dist(c0x, c0y, c1x, c1y);
+      // thresholds (px) - tuneable
+      const mergeStart = 180; // begin showing merge when closer than this
+      const mergeFull = 30;   // fully merged when very close
+      // target alpha grows as palms get closer
+      let targetAlpha = 0;
+      if (palmDist < mergeStart) {
+        // closer palms => alpha 1; map mergeStart..0 -> 0..1
+        targetAlpha = map(palmDist, mergeStart, 0, 0, 1, true);
+      }
+      twoHandsMergedAlpha = lerp(twoHandsMergedAlpha, targetAlpha, 0.18);
+
+      // scale: when palms are closer, allow larger merged flame (invert mapping)
+      const mergedMaxScale = 3.2;
+      const mergedMinScale = 0.6;
+      let targetScale = map(palmDist, mergeFull, mergeStart, mergedMaxScale, mergedMinScale, true);
+      twoHandsMergedScale = lerp(twoHandsMergedScale, targetScale, 0.18);
+
+      // midpoint between palms
+      mergedPalmCenter = { x: (c0x + c1x) / 2, y: (c0y + c1y) / 2 };
+    }
+  } else {
+    // decay alpha if second hand disappears
+    twoHandsMergedAlpha = lerp(twoHandsMergedAlpha, 0, 0.2);
+  }
   // for loop to capture if there is more than one hand on the screen. This applies the same process to all hands.
   for (let i = 0; i < hands.length; i++) {
     let hand = hands[i];
@@ -20,13 +88,15 @@ function drawInteraction(faces, hands) {
     let wristX = hand.wrist.x;
     let wristY = hand.wrist.y;
     let wristZ = hand.wrist.z3D;
+    
     let middleFingerTipX = hand.middle_finger_tip.x;
-let middleFingerTipY = hand.middle_finger_tip.y;
-let middleFingerTipZ = hand.middle_finger_tip.z3D;
+    let middleFingerTipY = hand.middle_finger_tip.y;
+    let middleFingerTipZ = hand.middle_finger_tip.z3D;
 
-let thumbTipX = hand.thumb_tip.x;
-let thumbTipY = hand.thumb_tip.y;
-let thumbTipZ = hand.thumb_tip.z3D;
+
+    let thumbTipX = hand.thumb_tip.x;
+    let thumbTipY = hand.thumb_tip.y;
+    let thumbTipZ = hand.thumb_tip.z3D;
 
     //  let pinkyFingerTipX = hand.pinky_finger_tip.x;
     //  let pinkyFingerTipY = hand.pinky  _finger_tip.y;
@@ -34,16 +104,105 @@ let thumbTipZ = hand.thumb_tip.z3D;
     /*
     Start drawing on the hands here
     */
-   let middleOfHandX = (middleFingerTipX + wristX) / 2
-   let middleOfHandY = (middleFingerTipY + wristY) / 2
+   let middleOfHandX = (middleFingerTipX + wristX) / 2;
+   let middleOfHandY = (middleFingerTipY + wristY) / 2;
 
-   
-  flame (middleOfHandX, middleOfHandY, 1);
+   // map pinky-thumb distance to palm flame scale
+   // map index-thumb distance to palm flame scale; hide palm flame when index and thumb touch
+   let palmScale = 1;
+   let touching = false;
+   const touchThreshold = 30; // pixels; adjust based on camera / calibration
+   if (hand.index_finger_tip && hand.thumb_tip) {
+     let itDist = dist(hand.index_finger_tip.x, hand.index_finger_tip.y, hand.thumb_tip.x, hand.thumb_tip.y);
+     if (itDist <= touchThreshold) {
+       // index and thumb touching/overlapping -> hide palm flame
+       touching = true;
+       palmScale = 0;
+     } else {
+       // map itDist (px) to scale range: touchThreshold -> 0.6, 200px -> 2.5
+       palmScale = map(itDist, touchThreshold, 200, 0.6, 2.5, true);
+     }
+   }
 
-  
+   // smooth palm scale per hand to reduce jitter
+   palmScaleByHand[i] = palmScaleByHand[i] || palmScale;
+   palmScaleByHand[i] = lerp(palmScaleByHand[i], palmScale, 0.2);
 
-    //drawPoints(hand)
-    flame(indexFingerTipX, indexFingerTipY, 2);
+   // only draw palm flame when hand is not a 'Fist'
+   // determine gesture once per hand
+   let gesture = typeof detectHandGesture === 'function' ? detectHandGesture(hand) : null;
+
+   // only draw palm flame if hand is not a 'Fist', index/thumb are not touching, and not Peace gesture
+   // skip per-hand palm flames when a merged two-hand blue flame is active
+   if (gesture !== 'Fist' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02) {
+     // when two hands are visible, show blue palm flames instead of orange
+     let palmColorMode = (hands && hands.length >= 2) ? 'blue' : false;
+     flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], palmColorMode);
+   }
+
+  // Peace gesture: merge two flames into one red flame centered between index+middle
+  if (gesture === 'Peace') {
+    // midpoint between index and middle
+    let midX = (indexFingerTipX + middleFingerTipX) / 2;
+    let midY = (indexFingerTipY + middleFingerTipY) / 2;
+    // distance between index and middle
+    let imDist = dist(indexFingerTipX, indexFingerTipY, middleFingerTipX, middleFingerTipY);
+  // map distance to merged scale (tweak min/max as needed)
+  // reverse behavior: when fingers close, flame larger; when farther, flame smaller
+  let targetScale = map(imDist, 10, 200, 3.0, 0.8, true);
+    // smooth per-hand
+    mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
+    mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
+
+    // compute an angle (average direction from wrist to midpoint)
+    let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
+                    atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
+    // draw single merged red flame
+    flame(midX, midY, angleMid, mergedScaleByHand[i], true);
+  } else {
+    // default: draw index flame only when pointing gesture is active
+    // smooth alpha for fade in/out
+    pointingAlphaByHand[i] = pointingAlphaByHand[i] || 0;
+    let targetAlpha = (gesture === 'Pointing') ? 1 : 0;
+    pointingAlphaByHand[i] = lerp(pointingAlphaByHand[i], targetAlpha, 0.25);
+
+    if (pointingAlphaByHand[i] > 0.02) {
+      // compute angle for index flame
+      let angleIdx = 0;
+      if (typeof wristX !== 'undefined' && typeof wristY !== 'undefined') {
+        angleIdx = atan2(indexFingerTipY - wristY, indexFingerTipX - wristX);
+      }
+
+      // compute depth-based scale (prefer z3D if available)
+      let targetScale = 1;
+      const minScale = 0.6; // when closest
+      const maxScale = 2.2; // when farthest
+
+      if (typeof middleFingerTipZ !== 'undefined' && middleFingerTipZ !== null) {
+        // many models use negative z for closer points; negate to get "larger = closer"
+        let depthVal = -middleFingerTipZ;
+        // tune these based on your camera; these are reasonable starting points
+        let minDepth = 0.05; // very close
+        let maxDepth = 0.6;  // far
+        // we want closer -> smaller, farther -> larger, so map depthVal -> maxScale..minScale
+        targetScale = map(depthVal, minDepth, maxDepth, maxScale, minScale, true);
+      } else {
+        // fallback: use pixel distance between middle tip and wrist as proxy (larger pixel dist ~ closer)
+        let pixDist = dist(middleFingerTipX, middleFingerTipY, wristX, wristY);
+        let minPix = 20;
+        let maxPix = 300;
+        // pixDist larger => closer, so map to maxScale..minScale to make closer->smaller
+        targetScale = map(pixDist, minPix, maxPix, maxScale, minScale, true);
+      }
+
+      // smooth scale per-hand
+      middleScaleByHand[i] = middleScaleByHand[i] || targetScale;
+      middleScaleByHand[i] = lerp(middleScaleByHand[i], targetScale, 0.2);
+
+      // draw orange flame at index with alpha fade
+      flame(indexFingerTipX, indexFingerTipY, angleIdx, middleScaleByHand[i], false, pointingAlphaByHand[i]);
+    }
+  }
 
     
 
@@ -55,51 +214,126 @@ let thumbTipZ = hand.thumb_tip.z3D;
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
   //------------------------------------------------------
+  // after drawing this frame's hands, if two-hands merged center is present, draw merged blue flame
+  if (mergedPalmCenter && twoHandsMergedAlpha > 0.02) {
+    // draw merged blue flame between palms
+    flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'blue', twoHandsMergedAlpha);
+  }
 }
 
-function flame(x, y, angle, scaleFactor = 2) {
+function flame(x, y, angle, scaleFactor = 2, redMode = false, alpha = 1) {
   push();
   translate(x, y);
   // guard angle (if caller didn't pass it)
   if (typeof angle === 'undefined' || isNaN(angle)) angle = 0;
   rotate(angle);
 
-  // subtle flicker
-  let flicker = random(0.9, 1.1);
+    // smooth sinusoidal flicker (gentle pulse) with per-flame phase offset
+    // freq controls speed, amp controls strength
+    let phaseOffset = ((x || 0) + (y || 0)) * 0.01;
+    let freq = 0.12; // speed of wobble (radians/frame)
+    let amp = 0.06;  // amplitude (6% around 1.0)
+    let flicker = 1 + amp * sin(frameCount * freq + phaseOffset);
   scale(flicker * scaleFactor);
 
   noStroke();
 
+  // clamp alpha
+  alpha = constrain(alpha, 0, 1);
+
+  // redMode can be boolean (true for red) or string 'blue' for blue palms
+  if (redMode === 'blue') {
+    // blue flame variant (used for two-hand palm mode)
+    fill(80, 140, 255, 100 * alpha);
+    ellipse(0, 0, 80, 100);
+
+    push();
+    let spinSpeedsB = 1;
+    let offsetsB = ((x || 0) + (y || 0)) * 0.01;
+    let spinsB = frameCount * spinSpeedsB + offsetsB;
+    rotate(spinsB);
+    fill(100, 170, 255, 180 * alpha);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    pop();
+
+    push();
+    let spinSpeedB = 1;
+    let offsetB = ((x || 0) + (y || 0)) * 0.01;
+    let spinB = frameCount * spinSpeedB + offsetB;
+    rotate(spinB);
+    fill(160, 200, 255, 220 * alpha);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+    pop();
+  } else if (redMode) {
+    // red flame colors
+    fill(255, 0, 0, 100 * alpha);
+    ellipse(0, 0, 80, 100);
+
+    push();
+    let spinSpeeds = 1;
+    let offsets = ((x || 0) + (y || 0)) * 0.01;
+    let spins = frameCount * spinSpeeds + offsets;
+    rotate(spins);
+  fill(255, 40, 40, 180 * alpha);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    pop();
+
+    push();
+    let spinSpeed = 1;
+    let offset = ((x || 0) + (y || 0)) * 0.01;
+    let spin = frameCount * spinSpeed + offset;
+    rotate(spin);
+  fill(255, 100, 100, 220 * alpha);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+    pop();
+  } else {
   // outer glow (unchanging)
-  fill(255, 80, 0, 100);
-  ellipse(0, 0, 80, 100);
+  fill(255, 80, 0, 100 * alpha);
+    ellipse(0, 0, 80, 100);
 
-  // main body (unchanging)
-  push();
-  let spinSpeeds = 1; // radians per frame multiplier
-  let offsets = ((x || 0) + (y || 0)) * 0.01; // i dont know what this is i just asked co pilot to make it spin
-  let spins = frameCount * spinSpeeds + offsets;
-  rotate(spins);
-  fill(255, 140, 0, 180);
-  beginShape();
-  vertex(0, 40);
-  bezierVertex(-20, 10, -10, -40, 0, -60);
-  bezierVertex(10, -40, 20, 10, 0, 40);
-  endShape(CLOSE);
-  pop();
+    // main body (unchanging)
+    push();
+    let spinSpeeds = 1; // radians per frame multiplier
+    let offsets = ((x || 0) + (y || 0)) * 0.01; // i dont know what this is i just asked co pilot to make it spin
+    let spins = frameCount * spinSpeeds + offsets;
+    rotate(spins);
+  fill(255, 140, 0, 180 * alpha);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    pop();
 
-  push();
-  let spinSpeed = 1; // radians per frame multiplier
-  let offset = ((x || 0) + (y || 0)) * 0.01; 
-  let spin = frameCount * spinSpeed + offset;
-  rotate(spin);
-  fill(255, 255, 0, 220);
-  beginShape();
-  vertex(0, 30);
-  bezierVertex(-10, 5, -5, -30, 0, -40);
-  bezierVertex(5, -30, 10, 5, 0, 30);
-  endShape(CLOSE);
-  pop();
+    push();
+    let spinSpeed = 1; // radians per frame multiplier
+    let offset = ((x || 0) + (y || 0)) * 0.01; 
+    let spin = frameCount * spinSpeed + offset;
+    rotate(spin);
+  fill(255, 255, 0, 220 * alpha);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+    pop();
+  }
 
   pop();
 }
