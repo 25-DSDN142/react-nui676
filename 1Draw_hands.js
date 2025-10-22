@@ -13,11 +13,30 @@ let middleScaleByHand = {};
 let pointingAlphaByHand = {};
 // per-hand smoothed ring (third finger) scale
 let ringScaleByHand = {};
+// per-hand smoothed purple merged scale (when three fingers come together)
+let purpleMergedScaleByHand = {};
+// per-hand alpha for merged/single purple flame
+let purpleMergedAlphaByHand = {};
 // two-hands merged palm state (single blue flame between palms)
 let twoHandsMergedAlpha = 0;
 let twoHandsMergedScale = 1;
 // lock state: once merged, stay merged until wrists separate beyond unlockZ (meters)
 let twoHandsMergeLocked = false;
+
+// helper: true when index+middle+ring are extended and thumb+pinky are down
+function isThreeFingersUp(hand) {
+  if (!hand) return false;
+  try {
+    let indexUp = hand.index_finger_tip.y < hand.index_finger_pip.y - 18;
+    let middleUp = hand.middle_finger_tip.y < hand.middle_finger_pip.y - 18;
+    let ringUp = hand.ring_finger_tip.y < hand.ring_finger_pip.y - 18;
+    let thumbDown = hand.thumb_tip.y > hand.thumb_ip.y - 6; // thumb roughly folded
+    let pinkyDown = hand.pinky_finger_tip.y > hand.pinky_finger_pip.y;
+    return indexUp && middleUp && ringUp && thumbDown && pinkyDown;
+  } catch (e) {
+    return false;
+  }
+}
 
 function drawInteraction(faces, hands) {
   // hands part
@@ -197,8 +216,8 @@ function drawInteraction(faces, hands) {
 
       // compute depth-based scale (prefer z3D if available)
       let targetScale = 1;
-      const minScale = 0.2; // when closest
-      const maxScale = 0.8; // when farthest
+      const minScale = 0.6; // when closest
+      const maxScale = 2.2; // when farthest
 
       if (typeof middleFingerTipZ !== 'undefined' && middleFingerTipZ !== null) {
         // many models use negative z for closer points; negate to get "larger = closer"

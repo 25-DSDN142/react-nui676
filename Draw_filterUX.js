@@ -6,7 +6,7 @@ let leftHorn;
 let angel = true;
 
 function prepareInteraction() {
-  halo = loadImage('/images/Gemini_halo.png');
+  halo = loadImage('/images/halo.png');
   rightHorn = loadImage('/images/Gemini_horn1.png');
   leftHorn = loadImage('/images/Gemini_horn2.png');
 }
@@ -46,6 +46,7 @@ function drawInteraction(faces, hands) {
   //facePart
   // for loop to capture if there is more than one face on the screen. This applies the same process to all faces. 
   for (let i = 0; i < faces.length; i++) {
+    if(hands.length > 0) {
     let face = faces[i]; // face holds all the keypoints of the face
     if (showKeypoints) {
       drawPoints(face)
@@ -78,12 +79,15 @@ function drawInteraction(faces, hands) {
     let hornYOffset = faceheight * 1.5;
 
     if (angel) {
-      image(halo, face.keypoints[103].x, face.keypoints[103].y - 200)
+      imageMode(CENTER);
+      image(halo, face.keypoints[10].x, face.keypoints[10].y - (halo.height/2));
+      imageMode(CORNER);
     } else {
       image(rightHorn, faceCenterX - hornXOffset, faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
       image(leftHorn, faceCenterX + hornXOffset - leftHorn.width, faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
 
     }
+  }
     /*
     Stop drawing on the face here
     */
