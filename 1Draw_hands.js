@@ -326,41 +326,52 @@ function drawInteraction(faces, hands) {
 
    // only draw palm flame if hand is not a 'Fist', 'Pointing', index/thumb are not touching, and not Peace gesture
    // In shooting mode: create traveling flames instead of static flames
+   // But only when hands are far apart (outside merged flame range)
    if (gesture !== 'Fist' && gesture !== 'Pointing' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02) {
-     if (shootingMode) {
-       // In shooting mode: create traveling purple flame to opposite hand
-       if (hands.length >= 2) {
-         // Find the other hand
-         let otherHandIndex = (i === 0) ? 1 : 0;
-         if (hands[otherHandIndex]) {
-           let otherHand = hands[otherHandIndex];
-           let otherMiddleX = (otherHand.middle_finger_tip.x + otherHand.wrist.x) / 2;
-           let otherMiddleY = (otherHand.middle_finger_tip.y + otherHand.wrist.y) / 2;
-           
-           // Create a traveling flame from this hand to the other hand
-           // Only create new flame if we don't have one traveling from this hand already
-           let existingFlameFromThisHand = travelingFlames.find(f => 
-             Math.abs(f.startX - middleOfHandX) < 10 && 
-             Math.abs(f.startY - middleOfHandY) < 10 && 
-             !f.arrived
-           );
-           
-           if (!existingFlameFromThisHand) {
-             let travelFlame = new TravelingFlame(
-               middleOfHandX, 
-               middleOfHandY, 
-               otherMiddleX, 
-               otherMiddleY, 
-               palmScaleByHand[i]
+     if (shootingMode && hands.length >= 2) {
+       // Check wrist distance to make sure we're well outside merged flame range
+       let h0 = hands[0];
+       let h1 = hands[1];
+       if (h0 && h1 && h0.wrist && h1.wrist) {
+         let wristDist = dist(h0.wrist.x, h0.wrist.y, h1.wrist.x, h1.wrist.y);
+         const travelFlameMinDist = 850; // Must be 100px beyond merged flame max (750 + 100)
+         
+         if (wristDist > travelFlameMinDist) {
+           // Hands far enough apart - create traveling flames
+           let otherHandIndex = (i === 0) ? 1 : 0;
+           if (hands[otherHandIndex]) {
+             let otherHand = hands[otherHandIndex];
+             let otherMiddleX = (otherHand.middle_finger_tip.x + otherHand.wrist.x) / 2;
+             let otherMiddleY = (otherHand.middle_finger_tip.y + otherHand.wrist.y) / 2;
+             
+             // Create a traveling flame from this hand to the other hand
+             // Only create new flame if we don't have one traveling from this hand already
+             let existingFlameFromThisHand = travelingFlames.find(f => 
+               Math.abs(f.startX - middleOfHandX) < 10 && 
+               Math.abs(f.startY - middleOfHandY) < 10 && 
+               !f.arrived
              );
-             travelingFlames.push(travelFlame);
-             console.log("Created traveling flame from hand", i, "to hand", otherHandIndex);
+             
+             if (!existingFlameFromThisHand) {
+               let travelFlame = new TravelingFlame(
+                 middleOfHandX, 
+                 middleOfHandY, 
+                 otherMiddleX, 
+                 otherMiddleY, 
+                 palmScaleByHand[i]
+               );
+               travelingFlames.push(travelFlame);
+               console.log("Created traveling flame from hand", i, "to hand", otherHandIndex);
+             }
            }
+         } else {
+           // Not far enough - show static purple flame
+           flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
          }
-       } else {
-         // Only one hand, show purple flame in place
-         flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
        }
+     } else if (shootingMode) {
+       // Only one hand, show purple flame in place
+       flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
      } else {
        // Normal mode: static palm flames
        // when two hands are visible, show blue palm flames instead of purple
@@ -578,8 +589,8 @@ function drawInteraction(faces, hands) {
         mergedFlameShotCooldown = SHOT_COOLDOWN * 5; // Long cooldown for explosion
       }
       
-      // Still draw the charging flame
-      if (twoHandsMergedScale > 0.5) {
+      // Only draw the charging flame when NOT on cooldown
+      if (twoHandsMergedScale > 0.5 && mergedFlameShotCooldown === 0) {
         flame(mergedPalmCenter.x, mergedPalmCenter.y, HALF_PI, twoHandsMergedScale * 1.15, 'blue', twoHandsMergedAlpha);
         flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
       }
