@@ -30,6 +30,45 @@ const SHOT_COOLDOWN = 10; // Frames between shots (10 = ~6 shots per second at 6
 const MUZZLE_FLASH_DURATION = 3; // Frames to show muzzle flash
 const CHARGE_DURATION = 60; // Frames to charge (1 second at 60fps)
 
+// Traveling purple flames between hands
+let travelingFlames = []; // Array to store traveling flames
+class TravelingFlame {
+  constructor(startX, startY, targetX, targetY, scale) {
+    this.x = startX;
+    this.y = startY;
+    this.startX = startX;
+    this.startY = startY;
+    this.targetX = targetX;
+    this.targetY = targetY;
+    this.scale = scale;
+    this.progress = 0; // 0 to 1
+    this.speed = 0.05; // How fast it travels (0.05 = 20 frames to reach)
+    this.alpha = 1.0;
+    this.arrived = false;
+  }
+  
+  update() {
+    if (!this.arrived) {
+      this.progress += this.speed;
+      if (this.progress >= 1) {
+        this.progress = 1;
+        this.arrived = true;
+      }
+      // Lerp position
+      this.x = lerp(this.startX, this.targetX, this.progress);
+      this.y = lerp(this.startY, this.targetY, this.progress);
+    }
+  }
+  
+  draw() {
+    flame(this.x, this.y, 0, this.scale, 'purple', this.alpha);
+  }
+  
+  isDone() {
+    return this.arrived;
+  }
+}
+
 // Projectile class
 class Projectile {
   constructor(x, y, angle, speed = 15) {
@@ -316,6 +355,10 @@ function drawInteraction(faces, hands) {
         muzzleFlashByHand[handId + '_peace']--;
       }
       
+      // Always show red flame for peace gesture in shooting mode
+      // Map distance to scale (closer = bigger)
+      let targetScale = map(imDist, 10, 200, 5.0, 0.8, true);
+      
       // Charging logic for peace gesture
       if (imDist < shootThreshold) {
         // Fingers are close, start charging
@@ -326,11 +369,8 @@ function drawInteraction(faces, hands) {
         // Show charging red flame that grows
         let chargeProgress = chargeTimeByHand[handId + '_peace'] / CHARGE_DURATION;
         
-        // Map distance to base scale (closer = bigger)
-        let baseScale = map(imDist, 10, 150, 5.0, 0.8, true);
-        
-        // Add charge growth
-        let chargeScale = baseScale * (0.3 + chargeProgress * 0.7);
+        // Add charge growth to the base scale
+        let chargeScale = targetScale * (0.5 + chargeProgress * 0.5);
         
         // Add pulsing effect during charge
         let pulseSpeed = 0.25 + chargeProgress * 0.3; // pulse faster as it charges
@@ -339,13 +379,6 @@ function drawInteraction(faces, hands) {
         
         mergedScaleByHand[i] = mergedScaleByHand[i] || chargeScale;
         mergedScaleByHand[i] = lerp(mergedScaleByHand[i], chargeScale * flicker, 0.2);
-        
-        // Compute angle for the flame
-        let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
-                        atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
-        
-        // Draw red charging flame
-        flame(midX, midY, angleMid, mergedScaleByHand[i], true, 0.7 + chargeProgress * 0.3);
         
         // Once fully charged, start shooting
         if (chargeTimeByHand[handId + '_peace'] >= CHARGE_DURATION && shotCooldownByHand[handId + '_peace'] === 0) {
@@ -361,9 +394,21 @@ function drawInteraction(faces, hands) {
           muzzleFlashByHand[handId + '_peace'] = MUZZLE_FLASH_DURATION;
         }
       } else {
-        // Fingers too far, reset charge
+        // Fingers too far, reset charge and show base flame
         chargeTimeByHand[handId + '_peace'] = 0;
+        
+        // smooth per-hand
+        mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
+        mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
       }
+      
+      // Compute angle for the flame
+      let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
+                      atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
+      
+      // Draw red flame between fingers (always visible in shooting mode)
+      let chargeProgress = chargeTimeByHand[handId + '_peace'] / CHARGE_DURATION;
+      flame(midX, midY, angleMid, mergedScaleByHand[i], true, 0.6 + chargeProgress * 0.4);
     } else {
       // Normal mode: display red flame
   // map distance to merged scale (tweak min/max as needed)
