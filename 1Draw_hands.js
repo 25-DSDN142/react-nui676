@@ -25,8 +25,10 @@ let projectiles = []; // Array to store active projectiles
 let lastGestureByHand = {}; // Track last gesture per hand to detect transitions
 let shotCooldownByHand = {}; // Cooldown timer for each hand
 let muzzleFlashByHand = {}; // Muzzle flash timer for each hand
+let chargeTimeByHand = {}; // Charge time accumulator for each hand
 const SHOT_COOLDOWN = 10; // Frames between shots (10 = ~6 shots per second at 60fps)
 const MUZZLE_FLASH_DURATION = 3; // Frames to show muzzle flash
+const CHARGE_DURATION = 60; // Frames to charge (1 second at 60fps)
 
 // Projectile class
 class Projectile {
@@ -220,6 +222,9 @@ function drawInteraction(faces, hands) {
    if (!muzzleFlashByHand[handId]) {
      muzzleFlashByHand[handId] = 0;
    }
+   if (!chargeTimeByHand[handId]) {
+     chargeTimeByHand[handId] = 0;
+   }
    
    // Decrease cooldown timer
    if (shotCooldownByHand[handId] > 0) {
@@ -231,16 +236,40 @@ function drawInteraction(faces, hands) {
      muzzleFlashByHand[handId]--;
    }
    
-   // Shoot when pointing, shooting mode is on, and cooldown is ready
-   if (shootingMode && gesture === 'Pointing' && shotCooldownByHand[handId] === 0) {
-     // Calculate angle from wrist to index finger tip
-     let shootAngle = atan2(indexFingerTipY - wristY, indexFingerTipX - wristX);
-     // Create projectile from fingertip
-     projectiles.push(new Projectile(indexFingerTipX, indexFingerTipY, shootAngle));
-     console.log("Fireball shot! Angle:", shootAngle);
-     // Reset cooldown and trigger muzzle flash
-     shotCooldownByHand[handId] = SHOT_COOLDOWN;
-     muzzleFlashByHand[handId] = MUZZLE_FLASH_DURATION;
+   // Charging and shooting logic for pointing
+   if (shootingMode && gesture === 'Pointing') {
+     // Increase charge time while pointing
+     if (chargeTimeByHand[handId] < CHARGE_DURATION) {
+       chargeTimeByHand[handId]++;
+     }
+     
+     // Show charging flame with pulsing/flickering effect
+     let chargeProgress = chargeTimeByHand[handId] / CHARGE_DURATION;
+     let pulseSpeed = 0.3;
+     let pulseAmount = 0.3;
+     let flicker = 1 + pulseAmount * sin(frameCount * pulseSpeed + handId * 10);
+     let chargeScale = chargeProgress * flicker * 1.5;
+     
+     // Calculate angle for flame
+     let angleIdx = atan2(indexFingerTipY - wristY, indexFingerTipX - wristX);
+     
+     // Draw charging flame (grows and pulses)
+     flame(indexFingerTipX, indexFingerTipY, angleIdx, chargeScale, false, chargeProgress);
+     
+     // Once fully charged, start shooting
+     if (chargeTimeByHand[handId] >= CHARGE_DURATION && shotCooldownByHand[handId] === 0) {
+       // Calculate angle from wrist to index finger tip
+       let shootAngle = atan2(indexFingerTipY - wristY, indexFingerTipX - wristX);
+       // Create projectile from fingertip
+       projectiles.push(new Projectile(indexFingerTipX, indexFingerTipY, shootAngle));
+       console.log("Orange fireball shot!");
+       // Reset cooldown and trigger muzzle flash
+       shotCooldownByHand[handId] = SHOT_COOLDOWN;
+       muzzleFlashByHand[handId] = MUZZLE_FLASH_DURATION;
+     }
+   } else {
+     // Reset charge when not pointing
+     chargeTimeByHand[handId] = 0;
    }
 
    // only draw palm flame if hand is not a 'Fist', 'Pointing', index/thumb are not touching, and not Peace gesture
@@ -263,15 +292,18 @@ function drawInteraction(faces, hands) {
     console.log("Peace gesture detected! Distance:", imDist, "Shooting mode:", shootingMode);
     
     if (shootingMode) {
-      // In shooting mode: show red flame that grows as fingers get closer, shoot when they touch
+      // In shooting mode: show charging red flame, then shoot when charged
       const shootThreshold = 100; // pixels - shoot when fingers are closer than this
       
-      // Initialize peace shot cooldown and muzzle flash
+      // Initialize peace shot cooldown, muzzle flash, and charge time
       if (!shotCooldownByHand[handId + '_peace']) {
         shotCooldownByHand[handId + '_peace'] = 0;
       }
       if (!muzzleFlashByHand[handId + '_peace']) {
         muzzleFlashByHand[handId + '_peace'] = 0;
+      }
+      if (!chargeTimeByHand[handId + '_peace']) {
+        chargeTimeByHand[handId + '_peace'] = 0;
       }
       
       // Decrease peace cooldown
@@ -284,37 +316,56 @@ function drawInteraction(faces, hands) {
         muzzleFlashByHand[handId + '_peace']--;
       }
       
-      // Only show red flame as muzzle flash when shooting
-      if (muzzleFlashByHand[handId + '_peace'] > 0) {
-        // Map distance to flame scale (closer = bigger)
-        let targetScale = map(imDist, 10, 150, 3.0, 0.5, true);
-        mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
-        mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
+      // Charging logic for peace gesture
+      if (imDist < shootThreshold) {
+        // Fingers are close, start charging
+        if (chargeTimeByHand[handId + '_peace'] < CHARGE_DURATION) {
+          chargeTimeByHand[handId + '_peace']++;
+        }
+        
+        // Show charging red flame that grows
+        let chargeProgress = chargeTimeByHand[handId + '_peace'] / CHARGE_DURATION;
+        
+        // Map distance to base scale (closer = bigger)
+        let baseScale = map(imDist, 10, 150, 5.0, 0.8, true);
+        
+        // Add charge growth
+        let chargeScale = baseScale * (0.3 + chargeProgress * 0.7);
+        
+        // Add pulsing effect during charge
+        let pulseSpeed = 0.25 + chargeProgress * 0.3; // pulse faster as it charges
+        let pulseAmount = 0.2 + chargeProgress * 0.3; // pulse more as it charges
+        let flicker = 1 + pulseAmount * sin(frameCount * pulseSpeed + handId * 10);
+        
+        mergedScaleByHand[i] = mergedScaleByHand[i] || chargeScale;
+        mergedScaleByHand[i] = lerp(mergedScaleByHand[i], chargeScale * flicker, 0.2);
         
         // Compute angle for the flame
         let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
                         atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
         
-        // Draw red flame between fingers (muzzle flash)
-        let flashAlpha = muzzleFlashByHand[handId + '_peace'] / MUZZLE_FLASH_DURATION;
-        flame(midX, midY, angleMid, mergedScaleByHand[i], true, flashAlpha);
-      }
-      
-      // Shoot red projectile continuously when peace gesture is active and fingers are close
-      if (imDist < shootThreshold && shotCooldownByHand[handId + '_peace'] === 0) {
-        // Calculate angle from wrist to midpoint
-        let shootAngle = atan2(midY - wristY, midX - wristX);
-        // Create RED projectile from between fingers
-        let redProjectile = new Projectile(midX, midY, shootAngle, 15);
-        redProjectile.isRed = true; // Mark as red projectile
-        projectiles.push(redProjectile);
-        console.log("Red fireball shot! Distance:", imDist);
-        // Shorter cooldown for rapid fire and trigger muzzle flash
-        shotCooldownByHand[handId + '_peace'] = SHOT_COOLDOWN * 1.5;
-        muzzleFlashByHand[handId + '_peace'] = MUZZLE_FLASH_DURATION;
+        // Draw red charging flame
+        flame(midX, midY, angleMid, mergedScaleByHand[i], true, 0.7 + chargeProgress * 0.3);
+        
+        // Once fully charged, start shooting
+        if (chargeTimeByHand[handId + '_peace'] >= CHARGE_DURATION && shotCooldownByHand[handId + '_peace'] === 0) {
+          // Calculate angle from wrist to midpoint
+          let shootAngle = atan2(midY - wristY, midX - wristX);
+          // Create RED projectile from between fingers
+          let redProjectile = new Projectile(midX, midY, shootAngle, 15);
+          redProjectile.isRed = true; // Mark as red projectile
+          projectiles.push(redProjectile);
+          console.log("Red fireball shot!");
+          // Shorter cooldown for rapid fire and trigger muzzle flash
+          shotCooldownByHand[handId + '_peace'] = SHOT_COOLDOWN * 1.5;
+          muzzleFlashByHand[handId + '_peace'] = MUZZLE_FLASH_DURATION;
+        }
+      } else {
+        // Fingers too far, reset charge
+        chargeTimeByHand[handId + '_peace'] = 0;
       }
     } else {
-      // Normal mode: display purple flame
+      // Normal mode: display red flame
   // map distance to merged scale (tweak min/max as needed)
   // reverse behavior: when fingers close, flame larger; when farther, flame smaller
   let targetScale = map(imDist, 10, 200, 5.0, 0.8, true);
@@ -325,8 +376,8 @@ function drawInteraction(faces, hands) {
     // compute an angle (average direction from wrist to midpoint)
     let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
                     atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
-    // draw single merged purple flame
-    flame(midX, midY, angleMid, mergedScaleByHand[i], 'purple');
+    // draw single merged red flame
+    flame(midX, midY, angleMid, mergedScaleByHand[i], true);
     }
   } else {
     // default: draw index flame only when pointing gesture is active
@@ -391,10 +442,12 @@ function drawInteraction(faces, hands) {
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
   //------------------------------------------------------
-  // after drawing this frame's hands, if two-hands merged center is present, draw merged purple flame
+  // after drawing this frame's hands, if two-hands merged center is present, draw merged blue & purple flame
   // Disable in shooting mode
   if (mergedPalmCenter && twoHandsMergedAlpha > 0.02 && !shootingMode) {
-    // draw merged purple flame between palms
+    // draw blue flame slightly bigger, starting at vertical angle (offset by PI/2)
+    flame(mergedPalmCenter.x, mergedPalmCenter.y, HALF_PI, twoHandsMergedScale * 1.15, 'blue', twoHandsMergedAlpha);
+    // draw purple flame on top, starting at horizontal angle (0)
     flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
   }
 
@@ -469,6 +522,36 @@ function flame(x, y, angle, scaleFactor = 2, redMode = false, alpha = 1) {
     let spinB = frameCount * spinSpeedB + offsetB;
     rotate(spinB);
     fill(160, 200, 255, 220 * alpha);
+    beginShape();
+    vertex(0, 30);
+    bezierVertex(-10, 5, -5, -30, 0, -40);
+    bezierVertex(5, -30, 10, 5, 0, 30);
+    endShape(CLOSE);
+    pop();
+  } else if (redMode === 'purple') {
+    // purple flame variant
+    fill(128, 0, 255, 100 * alpha);
+    ellipse(0, 0, 80, 100);
+
+    push();
+    let spinSpeedsP = 1;
+    let offsetsP = ((x || 0) + (y || 0)) * 0.01;
+    let spinsP = frameCount * spinSpeedsP + offsetsP;
+    rotate(spinsP);
+    fill(160, 60, 255, 180 * alpha);
+    beginShape();
+    vertex(0, 40);
+    bezierVertex(-20, 10, -10, -40, 0, -60);
+    bezierVertex(10, -40, 20, 10, 0, 40);
+    endShape(CLOSE);
+    pop();
+
+    push();
+    let spinSpeedP = 1;
+    let offsetP = ((x || 0) + (y || 0)) * 0.01;
+    let spinP = frameCount * spinSpeedP + offsetP;
+    rotate(spinP);
+    fill(200, 120, 255, 220 * alpha);
     beginShape();
     vertex(0, 30);
     bezierVertex(-10, 5, -5, -30, 0, -40);
