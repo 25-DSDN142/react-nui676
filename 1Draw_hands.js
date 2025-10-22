@@ -13,28 +13,52 @@ let middleScaleByHand = {};
 let pointingAlphaByHand = {};
 // per-hand smoothed ring (third finger) scale
 let ringScaleByHand = {};
-// per-hand smoothed purple merged scale (when three fingers come together)
-let purpleMergedScaleByHand = {};
-// per-hand alpha for merged/single purple flame
-let purpleMergedAlphaByHand = {};
 // two-hands merged palm state (single blue flame between palms)
 let twoHandsMergedAlpha = 0;
 let twoHandsMergedScale = 1;
 // lock state: once merged, stay merged until wrists separate beyond unlockZ (meters)
 let twoHandsMergeLocked = false;
 
-// helper: true when index+middle+ring are extended and thumb+pinky are down
-function isThreeFingersUp(hand) {
-  if (!hand) return false;
-  try {
-    let indexUp = hand.index_finger_tip.y < hand.index_finger_pip.y - 18;
-    let middleUp = hand.middle_finger_tip.y < hand.middle_finger_pip.y - 18;
-    let ringUp = hand.ring_finger_tip.y < hand.ring_finger_pip.y - 18;
-    let thumbDown = hand.thumb_tip.y > hand.thumb_ip.y - 6; // thumb roughly folded
-    let pinkyDown = hand.pinky_finger_tip.y > hand.pinky_finger_pip.y;
-    return indexUp && middleUp && ringUp && thumbDown && pinkyDown;
-  } catch (e) {
-    return false;
+// Shooting mode and projectiles
+let shootingMode = false;
+let projectiles = []; // Array to store active projectiles
+let lastGestureByHand = {}; // Track last gesture per hand to detect transitions
+let shotCooldownByHand = {}; // Cooldown timer for each hand
+const SHOT_COOLDOWN = 10; // Frames between shots (10 = ~6 shots per second at 60fps)
+
+// Projectile class
+class Projectile {
+  constructor(x, y, angle, speed = 15) {
+    this.x = x;
+    this.y = y;
+    this.vx = cos(angle) * speed;
+    this.vy = sin(angle) * speed;
+    this.size = 0.8; // Scale factor for flame
+    this.alpha = 1.0;
+    this.lifespan = 120; // frames (2 seconds at 60fps)
+    this.age = 0;
+    this.angle = angle; // Store angle for rotation
+    this.isRed = false; // Flag for red projectiles
+  }
+  
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.age++;
+    // Fade out near end of lifespan
+    if (this.age > this.lifespan * 0.7) {
+      this.alpha = map(this.age, this.lifespan * 0.7, this.lifespan, 1, 0);
+    }
+  }
+  
+  draw() {
+    // Draw red flame for peace gesture, orange for regular pointing
+    let colorMode = this.isRed ? true : false;
+    flame(this.x, this.y, this.angle, this.size, colorMode, this.alpha);
+  }
+  
+  isDead() {
+    return this.age > this.lifespan || this.x < 0 || this.x > width || this.y < 0 || this.y > height;
   }
 }
 
@@ -55,7 +79,7 @@ function drawInteraction(faces, hands) {
       let wristDist2D = dist(w0x, w0y, w1x, w1y);
       // thresholds (px) - tuneable
       const flameStartDist = 50;  // Flame appears when wrists are this far apart
-      const flameMaxDist = 300;   // Flame is at max size and disappears beyond this
+      const flameMaxDist = 700;   // Flame is at max size and disappears beyond this
 
       let targetAlpha = 0;
       let targetScale = 0;
@@ -66,7 +90,7 @@ function drawInteraction(faces, hands) {
         targetAlpha = 1.0;
         // The scale of the flame is linked to the distance between the wrists.
         // It starts small and gets bigger as the wrists move apart.
-        targetScale = map(wristDist2D, flameStartDist, flameMaxDist, 0.5, 4.0, true);
+        targetScale = map(wristDist2D, flameStartDist, flameMaxDist, 0.5, 6.0, true);
       } else {
         // If the wrists are too close or too far, the flame should not be visible.
         targetAlpha = 0;
@@ -172,25 +196,96 @@ function drawInteraction(faces, hands) {
    // only draw palm flame when hand is not a 'Fist'
    // determine gesture once per hand
    let gesture = typeof detectHandGesture === 'function' ? detectHandGesture(hand) : null;
+   
+   // Debug: log gesture
+   if (gesture) {
+     console.log("Gesture detected:", gesture);
+   }
 
-   // only draw palm flame if hand is not a 'Fist', index/thumb are not touching, and not Peace gesture
-   // skip per-hand palm flames when a merged two-hand blue flame is active
-   if (gesture !== 'Fist' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02) {
-     // when two hands are visible, show blue palm flames instead of orange
-     let palmColorMode = (hands && hands.length >= 2) ? 'blue' : false;
+   // Shooting mode toggle with Thumbs Up
+   let handId = i; // Use index as hand ID
+   if (gesture === 'Thumbs Up' && lastGestureByHand[handId] !== 'Thumbs Up') {
+     shootingMode = !shootingMode; // Toggle shooting mode
+     console.log("Shooting mode toggled:", shootingMode ? "ON" : "OFF");
+   }
+   lastGestureByHand[handId] = gesture;
+
+   // Shoot projectile when pointing in shooting mode
+   // Initialize cooldown if not set
+   if (!shotCooldownByHand[handId]) {
+     shotCooldownByHand[handId] = 0;
+   }
+   
+   // Decrease cooldown timer
+   if (shotCooldownByHand[handId] > 0) {
+     shotCooldownByHand[handId]--;
+   }
+   
+   // Shoot when pointing, shooting mode is on, and cooldown is ready
+   if (shootingMode && gesture === 'Pointing' && shotCooldownByHand[handId] === 0) {
+     // Calculate angle from wrist to index finger tip
+     let shootAngle = atan2(indexFingerTipY - wristY, indexFingerTipX - wristX);
+     // Create projectile from fingertip
+     projectiles.push(new Projectile(indexFingerTipX, indexFingerTipY, shootAngle));
+     console.log("Fireball shot! Angle:", shootAngle);
+     // Reset cooldown
+     shotCooldownByHand[handId] = SHOT_COOLDOWN;
+   }
+
+   // only draw palm flame if hand is not a 'Fist', 'Pointing', index/thumb are not touching, and not Peace gesture
+   // skip per-hand palm flames when a merged two-hand blue flame is active or in shooting mode
+   if (gesture !== 'Fist' && gesture !== 'Pointing' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02 && !shootingMode) {
+     // when two hands are visible, show blue palm flames instead of purple
+     let palmColorMode = (hands && hands.length >= 2) ? 'blue' : 'purple';
      flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], palmColorMode);
    }
 
-  // Peace gesture: merge two flames into one red flame centered between index+middle
+  // Peace gesture: merge two flames into one purple flame centered between index+middle
+  // In shooting mode, shoot a red projectile when fingers come together
   if (gesture === 'Peace') {
     // midpoint between index and middle
     let midX = (indexFingerTipX + middleFingerTipX) / 2;
     let midY = (indexFingerTipY + middleFingerTipY) / 2;
     // distance between index and middle
     let imDist = dist(indexFingerTipX, indexFingerTipY, middleFingerTipX, middleFingerTipY);
+    
+    console.log("Peace gesture detected! Distance:", imDist, "Shooting mode:", shootingMode);
+    
+    if (shootingMode) {
+      // In shooting mode: shoot a red projectile when fingers are close
+      const shootThreshold = 80; // pixels - how close fingers need to be to shoot (increased threshold)
+      
+      console.log("Peace in shooting mode. Distance:", imDist, "Threshold:", shootThreshold);
+      
+      // Initialize peace shot cooldown
+      if (!shotCooldownByHand[handId + '_peace']) {
+        shotCooldownByHand[handId + '_peace'] = 0;
+      }
+      
+      // Decrease peace cooldown
+      if (shotCooldownByHand[handId + '_peace'] > 0) {
+        shotCooldownByHand[handId + '_peace']--;
+      }
+      
+      // Shoot red projectile when fingers are together
+      if (imDist < shootThreshold && shotCooldownByHand[handId + '_peace'] === 0) {
+        // Calculate angle from wrist to midpoint
+        let shootAngle = atan2(midY - wristY, midX - wristX);
+        // Create RED projectile from between fingers
+        let redProjectile = new Projectile(midX, midY, shootAngle, 15);
+        redProjectile.isRed = true; // Mark as red projectile
+        projectiles.push(redProjectile);
+        console.log("Red fireball shot from peace gesture! Projectile created at:", midX, midY);
+        // Set longer cooldown for peace shot (more powerful)
+        shotCooldownByHand[handId + '_peace'] = SHOT_COOLDOWN * 2;
+      } else {
+        console.log("Peace shot blocked. Distance too far or cooldown active. Cooldown:", shotCooldownByHand[handId + '_peace']);
+      }
+    } else {
+      // Normal mode: display purple flame
   // map distance to merged scale (tweak min/max as needed)
   // reverse behavior: when fingers close, flame larger; when farther, flame smaller
-  let targetScale = map(imDist, 10, 200, 3.0, 0.8, true);
+  let targetScale = map(imDist, 10, 200, 5.0, 0.8, true);
     // smooth per-hand
     mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
     mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
@@ -198,8 +293,9 @@ function drawInteraction(faces, hands) {
     // compute an angle (average direction from wrist to midpoint)
     let angleMid = (atan2(indexFingerTipY - wristY, indexFingerTipX - wristX) +
                     atan2(middleFingerTipY - wristY, middleFingerTipX - wristX)) / 2;
-    // draw single merged red flame
-    flame(midX, midY, angleMid, mergedScaleByHand[i], true);
+    // draw single merged purple flame
+    flame(midX, midY, angleMid, mergedScaleByHand[i], 'purple');
+    }
   } else {
     // default: draw index flame only when pointing gesture is active
     // smooth alpha for fade in/out
@@ -255,10 +351,36 @@ function drawInteraction(faces, hands) {
   }
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
   //------------------------------------------------------
-  // after drawing this frame's hands, if two-hands merged center is present, draw merged blue flame
-  if (mergedPalmCenter && twoHandsMergedAlpha > 0.02) {
-    // draw merged blue flame between palms
-    flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'blue', twoHandsMergedAlpha);
+  // after drawing this frame's hands, if two-hands merged center is present, draw merged purple flame
+  // Disable in shooting mode
+  if (mergedPalmCenter && twoHandsMergedAlpha > 0.02 && !shootingMode) {
+    // draw merged purple flame between palms
+    flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
+  }
+
+  // Update and draw all projectiles
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    projectiles[i].update();
+    projectiles[i].draw();
+    // Remove dead projectiles
+    if (projectiles[i].isDead()) {
+      projectiles.splice(i, 1);
+    }
+  }
+  
+  // Debug: show projectile count
+  if (projectiles.length > 0) {
+    console.log("Active projectiles:", projectiles.length);
+  }
+
+  // Draw shooting mode indicator
+  if (shootingMode) {
+    push();
+    fill(255, 100, 0, 200);
+    textSize(20);
+    textAlign(CENTER);
+    text("SHOOTING MODE: ON", width / 2, 30);
+    pop();
   }
 }
 
