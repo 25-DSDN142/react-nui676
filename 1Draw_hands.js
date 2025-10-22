@@ -18,6 +18,9 @@ let twoHandsMergedAlpha = 0;
 let twoHandsMergedScale = 1;
 // lock state: once merged, stay merged until wrists separate beyond unlockZ (meters)
 let twoHandsMergeLocked = false;
+// Track merged flame state for shooting
+let mergedFlameWasCharged = false;
+let mergedFlameShotCooldown = 0;
 
 // Shooting mode and projectiles
 let shootingMode = false;
@@ -42,7 +45,10 @@ class TravelingFlame {
     this.targetY = targetY;
     this.scale = scale;
     this.progress = 0; // 0 to 1
-    this.speed = 0.05; // How fast it travels (0.05 = 20 frames to reach)
+    // Map distance between hands to speed (far = slow, close = fast)
+    let distance = dist(startX, startY, targetX, targetY);
+    // Map distance: 600px+ = 0.02 (slow), 300px = 0.03 (medium), 100px- = 0.05 (fast)
+    this.speed = map(distance, 600, 100, 0.02, 0.05, true);
     this.alpha = 1.0;
     this.arrived = false;
   }
@@ -82,6 +88,7 @@ class Projectile {
     this.age = 0;
     this.angle = angle; // Store angle for rotation
     this.isRed = false; // Flag for red projectiles
+    this.isMerged = false; // Flag for merged purple/blue projectiles
   }
   
   update() {
@@ -95,9 +102,15 @@ class Projectile {
   }
   
   draw() {
-    // Draw red flame for peace gesture, orange for regular pointing
-    let colorMode = this.isRed ? true : false;
-    flame(this.x, this.y, this.angle, this.size, colorMode, this.alpha);
+    if (this.isMerged) {
+      // Draw merged purple/blue flame projectile
+      flame(this.x, this.y, HALF_PI + this.age * 0.1, this.size * 1.15, 'blue', this.alpha);
+      flame(this.x, this.y, this.age * 0.1, this.size, 'purple', this.alpha);
+    } else {
+      // Draw red flame for peace gesture, orange for regular pointing
+      let colorMode = this.isRed ? true : false;
+      flame(this.x, this.y, this.angle, this.size, colorMode, this.alpha);
+    }
   }
   
   isDead() {
@@ -122,7 +135,7 @@ function drawInteraction(faces, hands) {
       let wristDist2D = dist(w0x, w0y, w1x, w1y);
       // thresholds (px) - tuneable
       const flameStartDist = 50;  // Flame appears when wrists are this far apart
-      const flameMaxDist = 700;   // Flame is at max size and disappears beyond this
+      const flameMaxDist = 750;   // Flame is at max size and disappears beyond this
 
       let targetAlpha = 0;
       let targetScale = 0;
@@ -312,11 +325,48 @@ function drawInteraction(faces, hands) {
    }
 
    // only draw palm flame if hand is not a 'Fist', 'Pointing', index/thumb are not touching, and not Peace gesture
-   // skip per-hand palm flames when a merged two-hand blue flame is active or in shooting mode
-   if (gesture !== 'Fist' && gesture !== 'Pointing' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02 && !shootingMode) {
-     // when two hands are visible, show blue palm flames instead of purple
-     let palmColorMode = (hands && hands.length >= 2) ? 'blue' : 'purple';
-     flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], palmColorMode);
+   // In shooting mode: create traveling flames instead of static flames
+   if (gesture !== 'Fist' && gesture !== 'Pointing' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02) {
+     if (shootingMode) {
+       // In shooting mode: create traveling purple flame to opposite hand
+       if (hands.length >= 2) {
+         // Find the other hand
+         let otherHandIndex = (i === 0) ? 1 : 0;
+         if (hands[otherHandIndex]) {
+           let otherHand = hands[otherHandIndex];
+           let otherMiddleX = (otherHand.middle_finger_tip.x + otherHand.wrist.x) / 2;
+           let otherMiddleY = (otherHand.middle_finger_tip.y + otherHand.wrist.y) / 2;
+           
+           // Create a traveling flame from this hand to the other hand
+           // Only create new flame if we don't have one traveling from this hand already
+           let existingFlameFromThisHand = travelingFlames.find(f => 
+             Math.abs(f.startX - middleOfHandX) < 10 && 
+             Math.abs(f.startY - middleOfHandY) < 10 && 
+             !f.arrived
+           );
+           
+           if (!existingFlameFromThisHand) {
+             let travelFlame = new TravelingFlame(
+               middleOfHandX, 
+               middleOfHandY, 
+               otherMiddleX, 
+               otherMiddleY, 
+               palmScaleByHand[i]
+             );
+             travelingFlames.push(travelFlame);
+             console.log("Created traveling flame from hand", i, "to hand", otherHandIndex);
+           }
+         }
+       } else {
+         // Only one hand, show purple flame in place
+         flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
+       }
+     } else {
+       // Normal mode: static palm flames
+       // when two hands are visible, show blue palm flames instead of purple
+       let palmColorMode = (hands && hands.length >= 2) ? 'blue' : 'purple';
+       flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], palmColorMode);
+     }
    }
 
   // Peace gesture: merge two flames into one purple flame centered between index+middle
@@ -356,8 +406,9 @@ function drawInteraction(faces, hands) {
       }
       
       // Always show red flame for peace gesture in shooting mode
-      // Map distance to scale (closer = bigger)
-      let targetScale = map(imDist, 10, 200, 5.0, 0.8, true);
+      // Start with small base flame, only grows when fingers touch during charging
+      let baseScale = 1.2; // Small base size for peace gesture
+      let targetScale = baseScale;
       
       // Charging logic for peace gesture
       if (imDist < shootThreshold) {
@@ -411,9 +462,10 @@ function drawInteraction(faces, hands) {
       flame(midX, midY, angleMid, mergedScaleByHand[i], true, 0.6 + chargeProgress * 0.4);
     } else {
       // Normal mode: display red flame
-  // map distance to merged scale (tweak min/max as needed)
-  // reverse behavior: when fingers close, flame larger; when farther, flame smaller
-  let targetScale = map(imDist, 10, 200, 5.0, 0.8, true);
+      // Small base size, grows only when fingers come together
+      let baseScale = 1.2;
+      // When fingers close (imDist small), grow bigger
+      let targetScale = map(imDist, 10, 150, 3.0, baseScale, true);
     // smooth per-hand
     mergedScaleByHand[i] = mergedScaleByHand[i] || targetScale;
     mergedScaleByHand[i] = lerp(mergedScaleByHand[i], targetScale, 0.2);
@@ -455,7 +507,7 @@ function drawInteraction(faces, hands) {
         let depthVal = -middleFingerTipZ;
         // tune these based on your camera; these are reasonable starting points
         let minDepth = 0.05; // very close
-        let maxDepth = 0.6;  // far
+        let maxDepth = 0.2;  // far
         // we want closer -> smaller, farther -> larger, so map depthVal -> maxScale..minScale
         targetScale = map(depthVal, minDepth, maxDepth, maxScale, minScale, true);
       } else {
@@ -488,12 +540,59 @@ function drawInteraction(faces, hands) {
   // You can make addtional elements here, but keep the hand drawing inside the for loop. 
   //------------------------------------------------------
   // after drawing this frame's hands, if two-hands merged center is present, draw merged blue & purple flame
-  // Disable in shooting mode
-  if (mergedPalmCenter && twoHandsMergedAlpha > 0.02 && !shootingMode) {
-    // draw blue flame slightly bigger, starting at vertical angle (offset by PI/2)
-    flame(mergedPalmCenter.x, mergedPalmCenter.y, HALF_PI, twoHandsMergedScale * 1.15, 'blue', twoHandsMergedAlpha);
-    // draw purple flame on top, starting at horizontal angle (0)
-    flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
+  // In shooting mode: shoot the merged flame when fully charged
+  if (mergedPalmCenter && twoHandsMergedAlpha > 0.02) {
+    if (shootingMode) {
+      // Decrease cooldown
+      if (mergedFlameShotCooldown > 0) {
+        mergedFlameShotCooldown--;
+      }
+      
+      // Check if flame is fully charged (hands close = small flame)
+      const chargeThreshold = 1.5; // Flame small when hands close
+      if (twoHandsMergedScale >= chargeThreshold && twoHandsMergedScale < 3.0 && !mergedFlameWasCharged) {
+        mergedFlameWasCharged = true;
+        console.log("Merged flame charged!");
+      }
+      
+      // If charged and hands spread apart (flame gets big), EXPLODE projectiles in all directions!
+      const shootThreshold = 5.0; // Hands spread = big flame = shoot
+      if (mergedFlameWasCharged && twoHandsMergedScale >= shootThreshold && mergedFlameShotCooldown === 0) {
+        // Shoot projectiles in ALL directions (360 degree explosion)
+        const numProjectiles = 12; // Number of projectiles in the burst
+        const angleStep = TWO_PI / numProjectiles;
+        
+        for (let i = 0; i < numProjectiles; i++) {
+          let angle = angleStep * i;
+          let mergedProjectile = new Projectile(mergedPalmCenter.x, mergedPalmCenter.y, angle, 12);
+          mergedProjectile.isMerged = true;
+          mergedProjectile.size = 1.5; // Medium size for explosion projectiles
+          mergedProjectile.lifespan = 150; // Longer lifespan
+          projectiles.push(mergedProjectile);
+        }
+        
+        console.log("MERGED FLAME EXPLOSION! 💥");
+        
+        // Reset state
+        mergedFlameWasCharged = false;
+        mergedFlameShotCooldown = SHOT_COOLDOWN * 5; // Long cooldown for explosion
+      }
+      
+      // Still draw the charging flame
+      if (twoHandsMergedScale > 0.5) {
+        flame(mergedPalmCenter.x, mergedPalmCenter.y, HALF_PI, twoHandsMergedScale * 1.15, 'blue', twoHandsMergedAlpha);
+        flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
+      }
+    } else {
+      // Normal mode: just draw the static merged flame
+      flame(mergedPalmCenter.x, mergedPalmCenter.y, HALF_PI, twoHandsMergedScale * 1.15, 'blue', twoHandsMergedAlpha);
+      flame(mergedPalmCenter.x, mergedPalmCenter.y, 0, twoHandsMergedScale, 'purple', twoHandsMergedAlpha);
+      // Reset shooting state when not in shooting mode
+      mergedFlameWasCharged = false;
+    }
+  } else {
+    // No merged flame visible, reset charge state
+    mergedFlameWasCharged = false;
   }
 
   // Update and draw all projectiles
@@ -503,6 +602,18 @@ function drawInteraction(faces, hands) {
     // Remove dead projectiles
     if (projectiles[i].isDead()) {
       projectiles.splice(i, 1);
+    }
+  }
+  
+  // Update and draw all traveling flames
+  for (let i = travelingFlames.length - 1; i >= 0; i--) {
+    travelingFlames[i].update();
+    travelingFlames[i].draw();
+    // Remove flames that have arrived and stayed for a bit
+    if (travelingFlames[i].isDone()) {
+      // Keep flame at destination for a moment before removing
+      // You could add a timer here if you want it to linger longer
+      travelingFlames.splice(i, 1);
     }
   }
   
