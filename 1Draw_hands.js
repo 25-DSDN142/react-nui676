@@ -20,6 +20,8 @@ let purpleMergedAlphaByHand = {};
 // two-hands merged palm state (single blue flame between palms)
 let twoHandsMergedAlpha = 0;
 let twoHandsMergedScale = 1;
+// lock state: once merged, stay merged until wrists separate beyond unlockZ (meters)
+let twoHandsMergeLocked = false;
 
 // helper: true when index+middle+ring are extended and thumb+pinky are down
 function isThreeFingersUp(hand) {
@@ -44,31 +46,62 @@ function drawInteraction(faces, hands) {
   if (twoHands) {
     let h0 = hands[0];
     let h1 = hands[1];
-    if (h0 && h1 && h0.middle_finger_tip && h0.wrist && h1.middle_finger_tip && h1.wrist) {
-      let c0x = (h0.middle_finger_tip.x + h0.wrist.x) / 2;
-      let c0y = (h0.middle_finger_tip.y + h0.wrist.y) / 2;
-      let c1x = (h1.middle_finger_tip.x + h1.wrist.x) / 2;
-      let c1y = (h1.middle_finger_tip.y + h1.wrist.y) / 2;
-      let palmDist = dist(c0x, c0y, c1x, c1y);
+    if (h0 && h1 && h0.wrist && h1.wrist) {
+      // use wrist 2D distance for activation/position, and z3D for unlock
+      let w0x = h0.wrist.x;
+      let w0y = h0.wrist.y;
+      let w1x = h1.wrist.x;
+      let w1y = h1.wrist.y;
+      let wristDist2D = dist(w0x, w0y, w1x, w1y);
       // thresholds (px) - tuneable
-      const mergeStart = 180; // begin showing merge when closer than this
-      const mergeFull = 30;   // fully merged when very close
-      // target alpha grows as palms get closer
+      const mergeStart = 200; // begin showing merge when wrists are closer than this (px)
+      const mergeFull = 40;   // fully merged when very close (px)
       let targetAlpha = 0;
-      if (palmDist < mergeStart) {
-        // closer palms => alpha 1; map mergeStart..0 -> 0..1
-        targetAlpha = map(palmDist, mergeStart, 0, 0, 1, true);
+      if (wristDist2D < mergeStart || twoHandsMergeLocked) {
+        // start activating or keep active if locked
+        targetAlpha = map(wristDist2D, mergeStart, 0, 0, 1, true);
       }
       twoHandsMergedAlpha = lerp(twoHandsMergedAlpha, targetAlpha, 0.18);
 
-      // scale: when palms are closer, allow larger merged flame (invert mapping)
+      // scale: allow larger merged flame when wrists are closer
       const mergedMaxScale = 3.2;
       const mergedMinScale = 0.6;
-      let targetScale = map(palmDist, mergeFull, mergeStart, mergedMaxScale, mergedMinScale, true);
+      let targetScale = map(wristDist2D, mergeFull, mergeStart, mergedMaxScale, mergedMinScale, true);
       twoHandsMergedScale = lerp(twoHandsMergedScale, targetScale, 0.18);
 
-      // midpoint between palms
-      mergedPalmCenter = { x: (c0x + c1x) / 2, y: (c0y + c1y) / 2 };
+      // compute a 'top of wrist' point for each hand (a fraction toward the middle fingertip)
+      // this places the merged flame above the palms instead of centered on the wrists
+  let topFactor = 0.6; // how far from wrist toward middle fingertip (raised higher)
+      let top0x = w0x;
+      let top0y = w0y;
+      let top1x = w1x;
+      let top1y = w1y;
+      if (h0.middle_finger_tip) {
+        top0x = w0x + (h0.middle_finger_tip.x - w0x) * topFactor;
+        top0y = w0y + (h0.middle_finger_tip.y - w0y) * topFactor;
+      }
+      if (h1.middle_finger_tip) {
+        top1x = w1x + (h1.middle_finger_tip.x - w1x) * topFactor;
+        top1y = w1y + (h1.middle_finger_tip.y - w1y) * topFactor;
+      }
+      // midpoint between those 'top of wrist' points
+      mergedPalmCenter = { x: (top0x + top1x) / 2, y: (top0y + top1y) / 2 };
+
+      // lock/unlock logic using wrist.z3D (meters) if available
+      let z0 = typeof h0.wrist.z3D !== 'undefined' ? h0.wrist.z3D : null;
+      let z1 = typeof h1.wrist.z3D !== 'undefined' ? h1.wrist.z3D : null;
+      const unlockZ = 1.0; // meters apart to unlock
+      if (!twoHandsMergeLocked && twoHandsMergedAlpha > 0.9) {
+        // lock when fully merged
+        twoHandsMergeLocked = true;
+      }
+      if (twoHandsMergeLocked && z0 !== null && z1 !== null) {
+        // compute absolute distance in z (approx meters if z3D is in meters)
+        let zDist = abs(z0 - z1);
+        if (zDist > unlockZ) {
+          twoHandsMergeLocked = false;
+        }
+      }
     }
   } else {
     // decay alpha if second hand disappears
