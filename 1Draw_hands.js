@@ -1,7 +1,10 @@
 // ----=  HANDS  =----
 /* load images here */
+let myImage; // Variable to store your image
+
 function prepareInteraction() {
   //bgImage = loadImage('/images/background.png');
+  myImage = loadImage('/images/sun.png'); // Replace with your actual image filename
 }
 
 // per-hand smoothed palm scales
@@ -631,6 +634,15 @@ function drawInteraction(faces, hands) {
   // Debug: show projectile count
   if (projectiles.length > 0) {
     console.log("Active projectiles:", projectiles.length);
+  }
+
+  // Draw your static image (if loaded)
+  if (myImage) {
+    push();
+    // Draw sun in top-left corner
+    imageMode(CORNER);
+    image(myImage, 20, 20, 150, 150); // x, y, width, height
+    pop();
   }
 
   // Draw shooting mode indicator
