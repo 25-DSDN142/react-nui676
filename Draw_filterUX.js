@@ -46,7 +46,6 @@ function drawInteraction(faces, hands) {
   //facePart
   // for loop to capture if there is more than one face on the screen. This applies the same process to all faces. 
   for (let i = 0; i < faces.length; i++) {
-    if(hands.length > 0) {
     let face = faces[i]; // face holds all the keypoints of the face
     if (showKeypoints) {
       drawPoints(face)
@@ -72,22 +71,21 @@ function drawInteraction(faces, hands) {
     let faceCenterY = face.faceOval.centerY;
 
 
-    let hornWidth = faceWidth / 3;
+    let hornWidth = faceWidth / 2;
     let hornHeight = faceheight;
 
-    let hornXOffset = faceWidth * 0.6;
-    let hornYOffset = faceheight * 1.5;
+    let hornXOffset = faceWidth * 0.3;
+    let hornYOffset = faceheight * 1.2;
 
     if (angel) {
       imageMode(CENTER);
       image(halo, face.keypoints[10].x, face.keypoints[10].y - (halo.height/2));
       imageMode(CORNER);
     } else {
-      image(rightHorn, faceCenterX - hornXOffset, faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
-      image(leftHorn, faceCenterX + hornXOffset - leftHorn.width, faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
+      image(rightHorn, faceCenterX - hornXOffset - (hornWidth/2), faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
+      image(leftHorn, faceCenterX + hornXOffset - (hornWidth/2), faceCenterY - hornYOffset, hornWidth, hornHeight) // imageName, x, y, imageWidth, imageHight
 
     }
-  }
     /*
     Stop drawing on the face here
     */
