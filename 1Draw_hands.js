@@ -27,6 +27,10 @@ let twoHandsMergeLocked = false;
 let mergedFlameWasCharged = false;
 let mergedFlameShotCooldown = 0;
 
+// Traveling flames delay (1 second window to see both colors)
+let twoHandsVisibleTimer = 0;
+const TRAVELING_FLAME_DELAY = 60; // 1 second at 60fps
+
 /* ----------------------------------------------------------------
    SHOOTING MODE VARIABLES
    ---------------------------------------------------------------- */
@@ -48,7 +52,7 @@ const CHARGE_DURATION = 60;         // 1 second charge time at 60fps
 let travelingFlames = [];
 
 class TravelingFlame {
-  constructor(startX, startY, targetX, targetY, scale) {
+  constructor(startX, startY, targetX, targetY, scale, color = 'purple') {
     this.x = startX;
     this.y = startY;
     this.startX = startX;
@@ -56,6 +60,7 @@ class TravelingFlame {
     this.targetX = targetX;
     this.targetY = targetY;
     this.scale = scale;
+    this.color = color; // 'purple' or 'blue'
     this.progress = 0;
     // Speed based on distance: far = slow, close = fast
     let distance = dist(startX, startY, targetX, targetY);
@@ -77,7 +82,7 @@ class TravelingFlame {
   }
   
   draw() {
-    flame(this.x, this.y, 0, this.scale, 'purple', this.alpha);
+    flame(this.x, this.y, 0, this.scale, this.color, this.alpha);
   }
   
   isDone() {
@@ -237,6 +242,14 @@ function drawInteraction(faces, hands) {
     let middleOfHandY = (middleFingerTipY + wristY) / 2;
 
     /* --------------------------------------------------------------
+       DETERMINE IF THIS IS LEFT OR RIGHT HAND
+       Left hand = wrist is on RIGHT side of screen (higher X value)
+       Right hand = wrist is on LEFT side of screen (lower X value)
+       -------------------------------------------------------------- */
+    let isLeftHand = wristX > width / 2;  // Left hand appears on right side of webcam view
+    let handColor = isLeftHand ? 'blue' : 'purple';  // Left=blue, Right=purple
+
+    /* --------------------------------------------------------------
        PALM FLAME SCALE CALCULATION
        Based on index-thumb distance
        -------------------------------------------------------------- */
@@ -324,6 +337,11 @@ function drawInteraction(faces, hands) {
        ============================================================== */
     if (gesture !== 'Fist' && gesture !== 'Pointing' && !touching && gesture !== 'Peace' && twoHandsMergedAlpha < 0.02) {
       if (shootingMode && hands.length >= 2) {
+        // Increment timer when two hands are visible
+        if (twoHandsVisibleTimer < TRAVELING_FLAME_DELAY) {
+          twoHandsVisibleTimer++;
+        }
+        
         // Check wrist distance
         let h0 = hands[0];
         let h1 = hands[1];
@@ -331,8 +349,9 @@ function drawInteraction(faces, hands) {
           let wristDist = dist(h0.wrist.x, h0.wrist.y, h1.wrist.x, h1.wrist.y);
           const travelFlameMinDist = 850;
           
-          if (wristDist > travelFlameMinDist) {
-            // Create traveling flame
+          // Only start traveling flames after 1 second delay
+          if (wristDist > travelFlameMinDist && twoHandsVisibleTimer >= TRAVELING_FLAME_DELAY) {
+            // Create traveling flame - left hand = blue, right hand = purple
             let otherHandIndex = (i === 0) ? 1 : 0;
             if (hands[otherHandIndex]) {
               let otherHand = hands[otherHandIndex];
@@ -346,21 +365,27 @@ function drawInteraction(faces, hands) {
               );
               
               if (!existingFlame) {
+                // Use actual hand position color (left hand = blue, right hand = purple)
                 travelingFlames.push(new TravelingFlame(
                   middleOfHandX, middleOfHandY, 
                   otherMiddleX, otherMiddleY, 
-                  palmScaleByHand[i]
+                  palmScaleByHand[i],
+                  handColor
                 ));
               }
             }
           } else {
-            flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
+            // Static flame - use actual hand color
+            flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], handColor);
           }
         }
       } else if (shootingMode) {
-        flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], 'purple');
+        // Single hand - reset timer, use actual hand color
+        twoHandsVisibleTimer = 0;
+        flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], handColor);
       } else {
-        // Normal mode: blue if two hands, purple if one
+        // Normal mode: reset timer, blue if two hands, purple if one
+        twoHandsVisibleTimer = 0;
         let palmColorMode = (hands && hands.length >= 2) ? 'blue' : 'purple';
         flame(middleOfHandX, middleOfHandY, 0, palmScaleByHand[i], palmColorMode);
       }
